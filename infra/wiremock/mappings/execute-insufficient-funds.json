@@ -1,0 +1,29 @@
+{
+  "name": "Reject a debit with insufficient funds",
+  "request": {
+    "method": "POST",
+    "urlPath": "/provider/v1/execute",
+    "headers": {
+      "Content-Type": { "contains": "application/json" }
+    },
+    "bodyPatterns": [
+      {
+        "equalToJson": {
+          "accountId": "acc-insufficient-funds",
+          "type": "DEBIT",
+          "amount": 1500.00,
+          "currency": "MXN"
+        }
+      }
+    ]
+  },
+  "response": {
+    "status": 422,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": {
+      "status": "REJECTED",
+      "code": "INSUFFICIENT_FUNDS",
+      "message": "The account does not have enough balance to complete the transaction"
+    }
+  }
+}

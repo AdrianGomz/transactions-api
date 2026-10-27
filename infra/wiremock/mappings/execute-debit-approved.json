@@ -1,0 +1,30 @@
+{
+  "name": "Approve a debit example",
+  "request": {
+    "method": "POST",
+    "urlPath": "/provider/v1/execute",
+    "headers": {
+      "Content-Type": { "contains": "application/json" }
+    },
+    "bodyPatterns": [
+      {
+        "equalToJson": {
+          "accountId": "acc-123456",
+          "type": "DEBIT",
+          "amount": 1500.00,
+          "currency": "MXN"
+        }
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": {
+      "transactionId": "txn-debit-790",
+      "status": "APPROVED",
+      "balance": 2500.00,
+      "executedAt": "2025-03-15T10:30:00Z"
+    }
+  }
+}

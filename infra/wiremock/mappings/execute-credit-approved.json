@@ -1,0 +1,30 @@
+{
+  "name": "Approve the challenge credit example",
+  "request": {
+    "method": "POST",
+    "urlPath": "/provider/v1/execute",
+    "headers": {
+      "Content-Type": { "contains": "application/json" }
+    },
+    "bodyPatterns": [
+      {
+        "equalToJson": {
+          "accountId": "acc-123456",
+          "type": "CREDIT",
+          "amount": 1500.00,
+          "currency": "MXN"
+        }
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": {
+      "transactionId": "txn-credit-789",
+      "status": "APPROVED",
+      "balance": 5500.00,
+      "executedAt": "2025-03-15T10:30:00Z"
+    }
+  }
+}
