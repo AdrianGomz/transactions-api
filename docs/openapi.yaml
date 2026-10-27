@@ -1,0 +1,592 @@
+openapi: 3.1.1
+info:
+  title: Transaction Execution API
+  version: 0.1.0
+  description: |
+    Contract for the Spin backend challenge. Implementation is in progress;
+    the Spring Boot starter does not yet expose these operations.
+
+    The service validates, executes through an external provider, and records
+    transactions. The provider owns accounts, balances, and locking.
+    A stored balanceAfter is a historical provider snapshot, not a current balance.
+
+    POST is not idempotent. Repeating a request creates a new execution attempt.
+    Do not automatically retry POST after a timeout or server error: the provider
+    may already have executed the transaction. No reconciliation API is available
+    in the supplied provider contract. GET is safe to repeat.
+
+    This local challenge API has no authentication. It is not configured for
+    public deployment. API decisions and assumptions are in api-decisions.md.
+servers:
+  - url: http://localhost:8080
+    description: Local development
+security: []
+tags:
+  - name: Transactions
+    description: Execute transactions and query stored outcomes.
+paths:
+  /transactions:
+    post:
+      tags: [Transactions]
+      operationId: executeTransaction
+      summary: Execute and record a credit or debit
+      description: |
+        Validate input before contacting the provider. Save PENDING before dispatch,
+        then save the provider outcome before returning HTTP 201.
+
+        HTTP 201 means a transaction record was created. Inspect status to
+        distinguish EXECUTED from REJECTED. A valid provider rejection body is
+        authoritative under the supplied contract, including on provider 5xx.
+
+        A timeout or unexpected provider response produces a problem response,
+        and UNKNOWN is persisted if possible. If final persistence fails, return
+        503 and the previously saved record may remain PENDING. If initial
+        persistence fails, the provider is not called.
+
+        This API does not expose GET /transactions/{id}; query the collection
+        using accountId and match the returned transaction ID. No Location
+        header pointing to an unsupported detail endpoint is returned.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionInput'
+            examples:
+              credit:
+                summary: Credit without a business maximum
+                value:
+                  accountId: acc-123456
+                  type: CREDIT
+                  amount: 1500.00
+                  currency: MXN
+                  description: Transferencia recibida
+              debitAtMaximum:
+                summary: The maximum debit is inclusive
+                value:
+                  accountId: acc-123456
+                  type: DEBIT
+                  amount: 10000.00
+                  currency: MXN
+      responses:
+        '201':
+          description: The execution outcome was persisted. Inspect status for approval or rejection.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Transaction'
+                  - type: object
+                    properties:
+                      status:
+                        enum: [EXECUTED, REJECTED]
+              examples:
+                executed:
+                  $ref: '#/components/examples/ExecutedTransaction'
+                rejected:
+                  $ref: '#/components/examples/RejectedTransaction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '415':
+          description: The request body must use application/json. The provider is not called.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: about:blank
+                title: Unsupported Media Type
+                status: 415
+                detail: Use Content-Type application/json.
+                instance: /transactions
+                code: UNSUPPORTED_MEDIA_TYPE
+                correlationId: 3182e484-d22b-49ef-85dc-c32ed064db92
+        '422':
+          description: An amount or currency rule was violated. Nothing is persisted and the provider is not called.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                minimumAmount:
+                  value:
+                    type: about:blank
+                    title: Unprocessable Content
+                    status: 422
+                    detail: One or more transaction rules were violated.
+                    instance: /transactions
+                    code: BUSINESS_RULE_VIOLATION
+                    correlationId: 3182e484-d22b-49ef-85dc-c32ed064db92
+                    fieldErrors:
+                      - field: amount
+                        code: AMOUNT_TOO_SMALL
+                        message: Amount must be greater than 1.00.
+                debitMaximum:
+                  value:
+                    type: about:blank
+                    title: Unprocessable Content
+                    status: 422
+                    detail: One or more transaction rules were violated.
+                    instance: /transactions
+                    code: BUSINESS_RULE_VIOLATION
+                    correlationId: 3182e484-d22b-49ef-85dc-c32ed064db92
+                    fieldErrors:
+                      - field: amount
+                        code: DEBIT_LIMIT_EXCEEDED
+                        message: DEBIT amount must not exceed 10000.00.
+                unsupportedCurrency:
+                  value:
+                    type: about:blank
+                    title: Unprocessable Content
+                    status: 422
+                    detail: One or more transaction rules were violated.
+                    instance: /transactions
+                    code: BUSINESS_RULE_VIOLATION
+                    correlationId: 3182e484-d22b-49ef-85dc-c32ed064db92
+                    fieldErrors:
+                      - field: currency
+                        code: UNSUPPORTED_CURRENCY
+                        message: Only MXN is supported.
+                fractionalCent:
+                  value:
+                    type: about:blank
+                    title: Unprocessable Content
+                    status: 422
+                    detail: One or more transaction rules were violated.
+                    instance: /transactions
+                    code: BUSINESS_RULE_VIOLATION
+                    correlationId: 3182e484-d22b-49ef-85dc-c32ed064db92
+                    fieldErrors:
+                      - field: amount
+                        code: INVALID_AMOUNT_PRECISION
+                        message: Amount must be exactly representable in cents.
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '502':
+          description: Unexpected provider response or transport failure. Execution outcome is uncertain; do not automatically retry.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ExecutionProblem'
+              example:
+                type: about:blank
+                title: Bad Gateway
+                status: 502
+                detail: The provider outcome could not be confirmed. Do not automatically resubmit.
+                instance: /transactions
+                code: PROVIDER_ERROR
+                correlationId: 3182e484-d22b-49ef-85dc-c32ed064db92
+                transactionId: 2b05f5ec-1d5d-4ade-9697-52f3b6a782dd
+        '503':
+          $ref: '#/components/responses/StorageUnavailable'
+        '504':
+          description: Provider timeout. Execution may already have occurred; do not automatically retry.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ExecutionProblem'
+              example:
+                type: about:blank
+                title: Gateway Timeout
+                status: 504
+                detail: The provider did not respond in time. Execution may have occurred. Do not automatically resubmit.
+                instance: /transactions
+                code: PROVIDER_TIMEOUT
+                correlationId: 3182e484-d22b-49ef-85dc-c32ed064db92
+                transactionId: 2b05f5ec-1d5d-4ade-9697-52f3b6a782dd
+    get:
+      tags: [Transactions]
+      operationId: listTransactions
+      summary: Query stored transactions
+      description: |
+        Filters are combined with AND and use exact, case-sensitive matches.
+        Sort by createdAt DESC, id DESC. Pages are zero-based.
+        hasNext reports whether another row existed when this page was read.
+        Concurrent writes can shift offset-based pages; this is not a snapshot.
+        An empty or out-of-range page returns 200 with an empty items array.
+        Invalid filter values and explicitly empty filters return 400.
+      parameters:
+        - name: accountId
+          in: query
+          description: Exact account identifier; omit for all accounts.
+          schema:
+            $ref: '#/components/schemas/AccountId'
+          example: acc-123456
+        - name: status
+          in: query
+          description: Exact stored transaction status.
+          schema:
+            $ref: '#/components/schemas/TransactionStatus'
+          example: EXECUTED
+        - name: type
+          in: query
+          description: Exact transaction type.
+          schema:
+            $ref: '#/components/schemas/TransactionType'
+          example: DEBIT
+        - name: page
+          in: query
+          description: Zero-based page number. Compute offsets using 64-bit arithmetic.
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+            maximum: 2147483647
+            default: 0
+        - name: limit
+          in: query
+          description: Maximum number of items in the page.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Matching stored transactions, including unresolved records when they match the filters.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionPage'
+              examples:
+                populated:
+                  value:
+                    items:
+                      - id: 2b05f5ec-1d5d-4ade-9697-52f3b6a782dd
+                        accountId: acc-123456
+                        type: CREDIT
+                        amount: 1500.00
+                        currency: MXN
+                        description: Transferencia recibida
+                        status: EXECUTED
+                        providerTransactionId: txn-789
+                        balanceAfter: 5500.00
+                        rejection: null
+                        createdAt: '2025-03-15T10:30:00Z'
+                    page: 0
+                    limit: 20
+                    hasNext: false
+                empty:
+                  value:
+                    items: []
+                    page: 0
+                    limit: 20
+                    hasNext: false
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/StorageUnavailable'
+components:
+  schemas:
+    AccountId:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: '\S'
+      description: Nonblank opaque provider account ID. Preserve its value; do not validate account existence locally.
+    TransactionType:
+      type: string
+      enum: [CREDIT, DEBIT]
+    TransactionStatus:
+      type: string
+      enum: [PENDING, EXECUTED, REJECTED, UNKNOWN]
+      description: |
+        PENDING means the attempt has not been finalized locally, including after a crash.
+        EXECUTED means provider approval was persisted.
+        REJECTED means an explicit provider rejection was persisted.
+        UNKNOWN means execution may have occurred but its outcome is unconfirmed.
+        PENDING and UNKNOWN are not promises of background retry or reconciliation.
+    TransactionInput:
+      type: object
+      required: [accountId, type, amount, currency]
+      description: |
+        Required fields cannot be null. JSON types are strict: amount must be a
+        number, not a quoted numeric string. Unknown properties are ignored.
+        Missing/null required fields, wrong JSON types, invalid transaction type,
+        blank accountId, and exceeded text lengths return 400.
+        Amount and supported-currency policy violations return 422.
+      properties:
+        accountId:
+          $ref: '#/components/schemas/AccountId'
+        type:
+          $ref: '#/components/schemas/TransactionType'
+        amount:
+          type: number
+          exclusiveMinimum: 1
+          multipleOf: 0.01
+          description: |
+            Exact decimal amount; use BigDecimal, never binary floating-point.
+            Trailing zeroes are accepted (1.010 is equivalent to 1.01).
+            Fractional cents are rejected rather than rounded.
+            CREDIT has no business maximum; DEBIT is capped at 10000.00.
+        currency:
+          type: string
+          enum: [MXN]
+          description: Case-sensitive. A non-null string other than MXN returns 422.
+        description:
+          type: [string, 'null']
+          maxLength: 500
+          description: Optional free text; omitted or null input is returned as null.
+      allOf:
+        - if:
+            properties:
+              type:
+                const: DEBIT
+            required: [type]
+          then:
+            properties:
+              amount:
+                maximum: 10000
+    Transaction:
+      allOf:
+        - $ref: '#/components/schemas/TransactionInput'
+        - type: object
+          required: [id, description, status, providerTransactionId, balanceAfter, rejection, createdAt]
+          properties:
+            id:
+              type: string
+              format: uuid
+            status:
+              $ref: '#/components/schemas/TransactionStatus'
+            providerTransactionId:
+              type: [string, 'null']
+              minLength: 1
+              description: Provider identifier on EXECUTED; null otherwise.
+            balanceAfter:
+              type: [number, 'null']
+              description: Exact provider-supplied historical balance on EXECUTED; null otherwise. Never computed locally.
+            rejection:
+              oneOf:
+                - $ref: '#/components/schemas/ProviderRejection'
+                - type: 'null'
+              description: Controlled rejection details on REJECTED; null otherwise.
+            createdAt:
+              type: string
+              format: date-time
+              description: UTC time the local attempt was created, not the provider execution time.
+          allOf:
+            - if:
+                properties:
+                  status:
+                    const: EXECUTED
+              then:
+                properties:
+                  providerTransactionId:
+                    type: string
+                    minLength: 1
+                  balanceAfter:
+                    type: number
+              else:
+                properties:
+                  providerTransactionId:
+                    type: 'null'
+                  balanceAfter:
+                    type: 'null'
+            - if:
+                properties:
+                  status:
+                    const: REJECTED
+              then:
+                properties:
+                  rejection:
+                    $ref: '#/components/schemas/ProviderRejection'
+              else:
+                properties:
+                  rejection:
+                    type: 'null'
+    ProviderRejection:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum: [INSUFFICIENT_FUNDS, PROVIDER_REJECTED]
+          description: Recognized insufficient-funds code, or a fallback for other valid provider rejections.
+        message:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: Safe application-owned message; do not relay raw upstream text.
+    TransactionPage:
+      type: object
+      required: [items, page, limit, hasNext]
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/Transaction'
+        page:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+        hasNext:
+          type: boolean
+    Problem:
+      type: object
+      required: [type, title, status, detail, instance, code, correlationId]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          const: about:blank
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+          description: Matches the HTTP response status.
+        detail:
+          type: string
+          description: Safe explanation without stack traces or raw provider payloads.
+        instance:
+          type: string
+          format: uri-reference
+          description: Request path; correlationId identifies the individual request.
+        code:
+          type: string
+          enum: [INVALID_REQUEST, BUSINESS_RULE_VIOLATION, UNSUPPORTED_MEDIA_TYPE, PROVIDER_ERROR, PROVIDER_TIMEOUT, STORAGE_UNAVAILABLE, INTERNAL_ERROR]
+        correlationId:
+          type: string
+          format: uuid
+          description: Server-generated ID for finding this request in logs.
+        transactionId:
+          type: string
+          format: uuid
+          description: Present when a local attempt ID exists. Does not guarantee successful persistence or execution.
+        fieldErrors:
+          type: array
+          minItems: 1
+          description: Present for field validation failures; omitted for other failures. Never echoes rejected values.
+          items:
+            type: object
+            required: [field, code, message]
+            properties:
+              field:
+                type: string
+              code:
+                type: string
+                enum: [REQUIRED, INVALID_VALUE, INVALID_LENGTH, AMOUNT_TOO_SMALL, DEBIT_LIMIT_EXCEEDED, UNSUPPORTED_CURRENCY, INVALID_AMOUNT_PRECISION]
+              message:
+                type: string
+    ExecutionProblem:
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          required: [transactionId]
+  responses:
+    BadRequest:
+      description: Malformed JSON, wrong types, missing required fields, invalid text lengths/type, or invalid query parameters. No provider execution occurs.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            missingAccount:
+              value:
+                type: about:blank
+                title: Bad Request
+                status: 400
+                detail: One or more request fields are invalid.
+                instance: /transactions
+                code: INVALID_REQUEST
+                correlationId: 3182e484-d22b-49ef-85dc-c32ed064db92
+                fieldErrors:
+                  - field: accountId
+                    code: REQUIRED
+                    message: accountId is required.
+            invalidPageSize:
+              value:
+                type: about:blank
+                title: Bad Request
+                status: 400
+                detail: One or more query parameters are invalid.
+                instance: /transactions
+                code: INVALID_REQUEST
+                correlationId: 3182e484-d22b-49ef-85dc-c32ed064db92
+                fieldErrors:
+                  - field: limit
+                    code: INVALID_VALUE
+                    message: limit must be between 1 and 100.
+    StorageUnavailable:
+      description: |
+        Storage could not complete the operation. GET can be retried.
+        For POST, initial-save failure prevents provider dispatch, but final-save
+        failure can occur after execution. A previous PENDING record may remain.
+        Do not automatically retry POST. Include transactionId when one exists.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            queryUnavailable:
+              value:
+                type: about:blank
+                title: Service Unavailable
+                status: 503
+                detail: Transaction storage is temporarily unavailable.
+                instance: /transactions
+                code: STORAGE_UNAVAILABLE
+                correlationId: 3182e484-d22b-49ef-85dc-c32ed064db92
+            finalSaveFailed:
+              value:
+                type: about:blank
+                title: Service Unavailable
+                status: 503
+                detail: The execution result could not be saved. Execution may have occurred. Do not automatically resubmit.
+                instance: /transactions
+                code: STORAGE_UNAVAILABLE
+                correlationId: 3182e484-d22b-49ef-85dc-c32ed064db92
+                transactionId: 2b05f5ec-1d5d-4ade-9697-52f3b6a782dd
+    InternalError:
+      description: Unexpected application error. POST may have side effects; do not automatically retry. Include transactionId when available.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: about:blank
+            title: Internal Server Error
+            status: 500
+            detail: An unexpected error occurred. Contact support with the correlation ID.
+            instance: /transactions
+            code: INTERNAL_ERROR
+            correlationId: 3182e484-d22b-49ef-85dc-c32ed064db92
+  examples:
+    ExecutedTransaction:
+      summary: Approved credit with the provider balance
+      value:
+        id: 2b05f5ec-1d5d-4ade-9697-52f3b6a782dd
+        accountId: acc-123456
+        type: CREDIT
+        amount: 1500.00
+        currency: MXN
+        description: Transferencia recibida
+        status: EXECUTED
+        providerTransactionId: txn-789
+        balanceAfter: 5500.00
+        rejection: null
+        createdAt: '2025-03-15T10:30:00Z'
+    RejectedTransaction:
+      summary: Provider explicitly rejected a debit
+      value:
+        id: 883acede-04cf-43f1-bce2-ea51d122cf73
+        accountId: acc-123456
+        type: DEBIT
+        amount: 1500.00
+        currency: MXN
+        description: null
+        status: REJECTED
+        providerTransactionId: null
+        balanceAfter: null
+        rejection:
+          code: INSUFFICIENT_FUNDS
+          message: The account does not have enough balance to complete the transaction.
+        createdAt: '2025-03-15T10:30:00Z'
