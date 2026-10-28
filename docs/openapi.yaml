@@ -3,8 +3,7 @@ info:
   title: Transaction Execution API
   version: 0.1.0
   description: |
-    Contract for the Spin backend challenge. Implementation is in progress;
-    the Spring Boot starter does not yet expose these operations.
+    Contract for the Spin backend challenge. Both POST and GET are implemented.
 
     The service validates, executes through an external provider, and records
     transactions. The provider owns accounts, balances, and locking.
@@ -204,7 +203,9 @@ paths:
         hasNext reports whether another row existed when this page was read.
         Concurrent writes can shift offset-based pages; this is not a snapshot.
         An empty or out-of-range page returns 200 with an empty items array.
-        Invalid filter values and explicitly empty filters return 400.
+        Invalid, explicitly empty, or repeated supported parameters return 400.
+        Pagination defaults apply only when omitted. Unknown query parameters
+        are ignored. This operation never calls the provider or changes records.
       parameters:
         - name: accountId
           in: query
@@ -307,6 +308,9 @@ components:
         Missing/null required fields, wrong JSON types, invalid transaction type,
         blank accountId, and exceeded text lengths return 400.
         Amount and supported-currency policy violations return 422.
+        Technical parser limits return 400: parsed document length 64 KiB,
+        nesting depth 32, strings 8192 characters, numeric tokens 1024 characters,
+        and amount magnitude at most 1000 integer digits including exponent expansion.
       properties:
         accountId:
           $ref: '#/components/schemas/AccountId'
