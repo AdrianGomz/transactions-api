@@ -1,7 +1,5 @@
 package com.spin.transactions.configuration;
 
-import com.spin.transactions.application.port.TransactionProvider;
-import com.spin.transactions.infrastructure.provider.RestTransactionProvider;
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
@@ -43,12 +41,11 @@ public class ProviderClientConfiguration {
 	}
 
 	@Bean
-	TransactionProvider transactionProvider(CloseableHttpClient providerHttpClient, ProviderProperties properties) {
-		var client = RestClient.builder()
+	RestClient providerRestClient(CloseableHttpClient providerHttpClient, ProviderProperties properties) {
+		return RestClient.builder()
 				.baseUrl(properties.baseUrl())
 				.requestFactory(new HttpComponentsClientHttpRequestFactory(providerHttpClient))
 				.build();
-		return new RestTransactionProvider(client);
 	}
 
 }

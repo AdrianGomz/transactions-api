@@ -17,6 +17,7 @@ import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.springframework.http.InvalidMediaTypeException;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpResponse;
+import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import tools.jackson.core.JacksonException;
@@ -25,6 +26,7 @@ import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
+@Service
 public final class RestTransactionProvider implements TransactionProvider {
 
 	private static final int MAX_RESPONSE_BYTES = 64 * 1024;

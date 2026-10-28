@@ -33,7 +33,7 @@ import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMoc
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
-@SpringJUnitConfig(ProviderClientConfiguration.class)
+@SpringJUnitConfig({ProviderClientConfiguration.class, RestTransactionProvider.class})
 @TestPropertySource(properties = {
 		"provider.connect-timeout=250ms",
 		"provider.response-timeout=250ms",

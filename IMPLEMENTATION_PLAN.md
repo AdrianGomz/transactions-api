@@ -67,7 +67,7 @@ infrastructure/provider/     provider DTOs, HTTP client, response mapping
 configuration/               dependency wiring and typed configuration
 ```
 
-Keep the domain and ports independent of Spring and JPA. Use `@Service` with constructor injection for application services and `@Repository` on the JPA implementation; configuration supplies the clock and UUID supplier. Use explicit, small mapping methods. Controllers do not contain business rules, provider DTOs do not escape into the public API, and application services do not depend on concrete adapters. Avoid generic base services, unnecessary interface hierarchies, and multiple deployable services.
+Keep the domain and ports independent of Spring and JPA. Use `@Service` with constructor injection for application services and the REST provider adapter, and `@Repository` on the JPA implementation. Configuration supplies the clock, UUID supplier, RestClient, and underlying HTTP client. Use explicit, small mapping methods. Controllers do not contain business rules, provider DTOs do not escape into the public API, and application services do not depend on concrete adapters. Avoid generic base services, unnecessary interface hierarchies, and multiple deployable services.
 
 ## 4. API contract and business rules
 
