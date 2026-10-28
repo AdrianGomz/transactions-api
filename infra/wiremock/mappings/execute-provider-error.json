@@ -1,0 +1,29 @@
+{
+  "name": "Return an unstructured upstream error",
+  "request": {
+    "method": "POST",
+    "urlPath": "/provider/v1/execute",
+    "headers": {
+      "Content-Type": {
+        "contains": "application/json"
+      }
+    },
+    "bodyPatterns": [
+      {
+        "equalToJson": {
+          "accountId": "acc-provider-error",
+          "type": "DEBIT",
+          "amount": 1500.0,
+          "currency": "MXN"
+        }
+      }
+    ]
+  },
+  "response": {
+    "status": 500,
+    "headers": {
+      "Content-Type": "text/html"
+    },
+    "body": "<html>Upstream unavailable</html>"
+  }
+}

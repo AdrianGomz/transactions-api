@@ -1,0 +1,33 @@
+{
+  "name": "Return a contract-defined rejection on HTTP 503",
+  "request": {
+    "method": "POST",
+    "urlPath": "/provider/v1/execute",
+    "headers": {
+      "Content-Type": {
+        "contains": "application/json"
+      }
+    },
+    "bodyPatterns": [
+      {
+        "equalToJson": {
+          "accountId": "acc-provider-rejected",
+          "type": "DEBIT",
+          "amount": 1500.0,
+          "currency": "MXN"
+        }
+      }
+    ]
+  },
+  "response": {
+    "status": 503,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "status": "REJECTED",
+      "code": "PROVIDER_UNAVAILABLE",
+      "message": "The provider rejected this execution"
+    }
+  }
+}

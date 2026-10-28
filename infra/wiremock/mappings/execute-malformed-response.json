@@ -1,0 +1,29 @@
+{
+  "name": "Return malformed JSON instead of an approval",
+  "request": {
+    "method": "POST",
+    "urlPath": "/provider/v1/execute",
+    "headers": {
+      "Content-Type": {
+        "contains": "application/json"
+      }
+    },
+    "bodyPatterns": [
+      {
+        "equalToJson": {
+          "accountId": "acc-malformed",
+          "type": "DEBIT",
+          "amount": 1500.0,
+          "currency": "MXN"
+        }
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": "{invalid json"
+  }
+}
