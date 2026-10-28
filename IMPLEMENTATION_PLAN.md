@@ -1,6 +1,8 @@
 # Transaction Execution API — implementation plan
 
-Status: proposal for review; application implementation has not started.
+Status: Steps 1–8 are complete. Both endpoints, Docker packaging, health probes, structured container logs, and bounded metrics are implemented. Maven verification passed all 287 tests. A fresh isolated Compose stack passed the repeatable smoke script on Java 21 as a non-root user; database readiness failure/recovery and graceful shutdown were also verified. The temporary stack was removed afterward. See [README.md](README.md) for commands and design details, [docs/verification.md](docs/verification.md) for evidence/limits, [docs/openapi.yaml](docs/openapi.yaml) for the contract, and [docs/api-decisions.md](docs/api-decisions.md) for assumptions. Next: step 9, final code/documentation review and repository handoff.
+
+Working agreement: announce the intended work before each implementation step, complete and verify that step, then summarize the result for review before moving to the next step.
 
 ## 1. Objective and scope
 
@@ -143,11 +145,11 @@ One `transactions` table; no account or balance ledger tables.
 | `provider_transaction_id` | Nullable until a valid approval |
 | `balance_after` | Nullable NUMERIC; provider-supplied snapshot, never calculated locally |
 | `provider_executed_at` | Nullable TIMESTAMPTZ from the successful provider response |
-| `provider_error_code`, `provider_error_message` | Nullable, bounded, controlled provider rejection details |
+| `rejection_reason` | Nullable controlled rejection code; safe display messages are derived from the domain enum |
 | `failure_code` | Nullable internal technical classification for diagnostics |
 | `created_at`, `updated_at` | TIMESTAMPTZ; use Java Instant and UTC serialization |
 
-Use Flyway for constraints and indexes; explicitly map unconstrained NUMERIC so ORM defaults do not impose an accidental amount limit. Apply monetary policy checks at both the application boundary and database where appropriate.
+Use Flyway for constraints and indexes; explicitly map unconstrained NUMERIC so ORM defaults do not impose an accidental amount limit. Apply monetary policy checks at both the application boundary and database where appropriate. Persist controlled rejection reasons without duplicating their safe messages or storing raw provider text. Normalize timestamps to PostgreSQL microsecond precision before writing.
 
 Initial indexes: `(created_at DESC, id DESC)` and `(account_id, created_at DESC, id DESC)`. Add status/type composites only if representative query plans justify their write/storage cost. The stored `balanceAfter` is historical information for that execution, not an authoritative current account balance.
 
