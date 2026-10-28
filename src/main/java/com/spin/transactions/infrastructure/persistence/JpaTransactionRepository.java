@@ -13,19 +13,17 @@ import com.spin.transactions.application.port.TransactionUpdateConflictException
 import com.spin.transactions.domain.Transaction;
 import com.spin.transactions.domain.TransactionStatus;
 import jakarta.persistence.EntityManager;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Repository
+@RequiredArgsConstructor
 @Transactional(propagation = Propagation.REQUIRES_NEW)
 public class JpaTransactionRepository implements TransactionRepository {
 
 	private final EntityManager entityManager;
-
-	public JpaTransactionRepository(EntityManager entityManager) {
-		this.entityManager = entityManager;
-	}
 
 	@Override
 	public Transaction insertPending(Transaction transaction) {

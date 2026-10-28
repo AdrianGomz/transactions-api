@@ -5,16 +5,14 @@ import java.util.Objects;
 import com.spin.transactions.application.port.TransactionPage;
 import com.spin.transactions.application.port.TransactionQuery;
 import com.spin.transactions.application.port.TransactionRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public final class QueryTransactionsService {
 
 	private final TransactionRepository repository;
-
-	public QueryTransactionsService(TransactionRepository repository) {
-		this.repository = Objects.requireNonNull(repository);
-	}
 
 	public TransactionPage findAll(TransactionQuery query) {
 		Objects.requireNonNull(query);

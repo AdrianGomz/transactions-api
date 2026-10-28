@@ -13,6 +13,7 @@ import com.spin.transactions.domain.ExecutionFailure;
 import com.spin.transactions.domain.RejectionReason;
 import com.spin.transactions.domain.TransactionDetails;
 import com.spin.transactions.domain.TransactionType;
+import lombok.RequiredArgsConstructor;
 import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.springframework.http.InvalidMediaTypeException;
 import org.springframework.http.MediaType;
@@ -27,6 +28,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 @Service
+@RequiredArgsConstructor
 public final class RestTransactionProvider implements TransactionProvider {
 
 	private static final int MAX_RESPONSE_BYTES = 64 * 1024;
@@ -37,10 +39,6 @@ public final class RestTransactionProvider implements TransactionProvider {
 			.enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
 			.enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
 			.build();
-
-	public RestTransactionProvider(RestClient client) {
-		this.client = Objects.requireNonNull(client);
-	}
 
 	@Override
 	public ProviderResult execute(TransactionDetails details) {

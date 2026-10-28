@@ -69,6 +69,8 @@ configuration/               dependency wiring and typed configuration
 
 Keep the domain and ports independent of Spring and JPA. Use `@Service` with constructor injection for application services and the REST provider adapter, and `@Repository` on the JPA implementation. Configuration supplies the clock, UUID supplier, RestClient, and underlying HTTP client. Use explicit, small mapping methods. Controllers do not contain business rules, provider DTOs do not escape into the public API, and application services do not depend on concrete adapters. Avoid generic base services, unnecessary interface hierarchies, and multiple deployable services.
 
+Use Lombok `@RequiredArgsConstructor` for dependency constructors in services and adapters, relying on Spring to resolve required dependencies. Unit tests construct services directly with explicit dependencies. Keep records and domain validation constructors explicit. Configure annotation processing in Maven and exclude Lombok from the executable JAR.
+
 ## 4. API contract and business rules
 
 ### POST /transactions

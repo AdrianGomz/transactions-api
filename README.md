@@ -329,6 +329,8 @@ Controller integration tests mirror the `api.controller` package. Request/respon
 
 Application services use `@Service` and constructor injection. `ApplicationConfiguration` supplies only the Clock and UUID supplier needed by the execution service. `JpaTransactionRepository` uses `@Repository` for component discovery and persistence exception translation. The repository port stays an unannotated interface, and domain models/ports remain independent of Spring and JPA.
 
+Lombok generates dependency constructors with `@RequiredArgsConstructor` in the application services, controller, JPA repository, and REST provider. Required dependencies use final fields and are resolved by Spring; unit tests construct services directly with mocks and explicit dependencies. Records and constructors that enforce domain rules remain explicit. Maven configures Lombok as an annotation processor using Spring Boot's managed version; Lombok is excluded from the executable JAR. If an IDE reports missing constructors, enable annotation processing and its Lombok support.
+
 ## AI usage
 
 OpenAI Codex assisted with planning, the OpenAPI contract, Spring Initializr generation, local infrastructure configuration, domain/persistence/provider implementation, unit/integration tests, Docker packaging, smoke checks, and verification. Design choices and generated code are reviewed incrementally with the developer. This note will be updated as implementation progresses.

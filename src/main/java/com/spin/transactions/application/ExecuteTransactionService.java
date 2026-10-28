@@ -12,26 +12,20 @@ import com.spin.transactions.application.port.TransactionRepository;
 import com.spin.transactions.domain.ExecutionFailure;
 import com.spin.transactions.domain.Transaction;
 import com.spin.transactions.domain.TransactionDetails;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import static com.spin.transactions.application.TransactionExecutionException.Reason.*;
 
 /** Coordinates short committed writes around one provider attempt; no surrounding database transaction. */
 @Service
+@RequiredArgsConstructor
 public final class ExecuteTransactionService {
 
 	private final TransactionRepository repository;
 	private final TransactionProvider provider;
 	private final Clock clock;
 	private final Supplier<UUID> ids;
-
-	public ExecuteTransactionService(TransactionRepository repository, TransactionProvider provider,
-			Clock clock, Supplier<UUID> ids) {
-		this.repository = Objects.requireNonNull(repository);
-		this.provider = Objects.requireNonNull(provider);
-		this.clock = Objects.requireNonNull(clock);
-		this.ids = Objects.requireNonNull(ids);
-	}
 
 	public Transaction execute(TransactionDetails details) {
 		var attempt = Transaction.pending(ids.get(), Objects.requireNonNull(details), clock.instant());
