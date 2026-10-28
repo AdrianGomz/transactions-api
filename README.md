@@ -179,7 +179,7 @@ To demonstrate a provider rejection, use `accountId: acc-insufficient-funds` and
 
 All errors use `application/problem+json`, with `type`, `title`, `status`, `detail`, `instance`, `code`, and `correlationId`. Field violations include `fieldErrors`; execution failures include the local `transactionId`. Each response also includes an `X-Correlation-ID` header. Application failure logs use correlation ID, transaction ID, reason, and cause class without exposing raw provider/database messages in the response.
 
-`ExecuteTransactionService` is plain Java, configured by Spring through constructor injection. It commits the initial PENDING record, performs one provider invocation, then commits the outcome using the repository's independent transactions. It has no surrounding database transaction. Final-write failures take precedence over provider errors, so the API does not claim UNKNOWN was stored if that write failed. Unexpected client exceptions are treated conservatively and do not trigger a retry. The local clock is injected, and backward clock adjustments cannot produce an updatedAt earlier than creation.
+`ExecuteTransactionService` is a Spring `@Service` using constructor injection. It commits the initial PENDING record, performs one provider invocation, then commits the outcome using the repository's independent transactions. It has no surrounding database transaction. Final-write failures take precedence over provider errors, so the API does not claim UNKNOWN was stored if that write failed. Unexpected client exceptions are treated conservatively and do not trigger a retry. The local clock is injected, and backward clock adjustments cannot produce an updatedAt earlier than creation.
 
 JSON field types are strict: quoted amounts, numeric enum values, and numeric/boolean values for string fields return 400. Duplicate keys and trailing JSON documents also return 400. Unknown fields are ignored, subject to parser limits. Technical safeguards bound parsed documents to 64 KiB, nesting to 32 levels, strings to 8192 characters, numeric tokens to 1024 characters, and amounts to 1000 integer digits (including exponent expansion). These resource limits are separate from business rules; CREDIT has no business maximum within the supported representation. Fractional cents remain a 422 policy error rather than being rounded.
 
@@ -210,7 +210,7 @@ The response is HTTP 200 with `{ "items": [...], "page": 0, "limit": 20, "hasNex
 
 Explicitly empty, blank, malformed, out-of-range, or repeated supported parameters return 400 with code INVALID_REQUEST and a descriptive fieldErrors entry. Pagination defaults apply only when omitted. Unknown query parameters are ignored for forward compatibility. Storage failures return 503 with code STORAGE_UNAVAILABLE and a correlation ID; no transaction ID is invented for a read failure. GET can safely be repeated.
 
-`QueryTransactionsService` is plain Java and only calls the repository. The controller parses/validates query values before database access and maps the result to the public page response. It never invokes the provider or changes transaction state. Offset arithmetic uses 64-bit values, but deep offsets still cost database work. Concurrent writes can shift pages, so this is not snapshot pagination; cursor pagination remains a future option. No total-count query is issued.
+`QueryTransactionsService` is a Spring `@Service` and only calls the repository. The controller parses/validates query values before database access and maps the result to the public page response. It never invokes the provider or changes transaction state. Offset arithmetic uses 64-bit values, but deep offsets still cost database work. Concurrent writes can shift pages, so this is not snapshot pagination; cursor pagination remains a future option. No total-count query is issued.
 
 ## Provider integration
 
@@ -312,7 +312,9 @@ List queries sort by `created_at DESC, id DESC` and fetch `limit + 1` records to
 - [API decisions and assumptions](docs/api-decisions.md)
 - [Verification evidence and limitations](docs/verification.md)
 
-The architecture uses ports and adapters. The REST controller validates the HTTP boundary and invokes plain Java execution/query services. The execution service coordinates the domain, repository port, and provider port; the query service only reads through the repository port. The JPA adapter implements persistence and the RestClient adapter implements provider communication. PostgreSQL supplies durable transaction records, exact decimal storage, and indexed queries. Flyway owns versioned schema migrations. The provider remains responsible for account balances and locking.
+The architecture uses ports and adapters. The REST controller validates the HTTP boundary and invokes Spring-managed execution/query services. The execution service coordinates the domain, repository port, and provider port; the query service only reads through the repository port. The JPA adapter implements persistence and the RestClient adapter implements provider communication. PostgreSQL supplies durable transaction records, exact decimal storage, and indexed queries. Flyway owns versioned schema migrations. The provider remains responsible for account balances and locking.
+
+Application services use `@Service` and constructor injection. `ApplicationConfiguration` supplies only the Clock and UUID supplier needed by the execution service. `JpaTransactionRepository` uses `@Repository` for component discovery and persistence exception translation. The repository port stays an unannotated interface, and domain models/ports remain independent of Spring and JPA.
 
 ## AI usage
 

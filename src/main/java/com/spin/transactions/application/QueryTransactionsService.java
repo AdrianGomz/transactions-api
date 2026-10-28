@@ -5,7 +5,9 @@ import java.util.Objects;
 import com.spin.transactions.application.port.TransactionPage;
 import com.spin.transactions.application.port.TransactionQuery;
 import com.spin.transactions.application.port.TransactionRepository;
+import org.springframework.stereotype.Service;
 
+@Service
 public final class QueryTransactionsService {
 
 	private final TransactionRepository repository;

@@ -12,10 +12,12 @@ import com.spin.transactions.application.port.TransactionRepository;
 import com.spin.transactions.domain.ExecutionFailure;
 import com.spin.transactions.domain.Transaction;
 import com.spin.transactions.domain.TransactionDetails;
+import org.springframework.stereotype.Service;
 
 import static com.spin.transactions.application.TransactionExecutionException.Reason.*;
 
 /** Coordinates short committed writes around one provider attempt; no surrounding database transaction. */
+@Service
 public final class ExecuteTransactionService {
 
 	private final TransactionRepository repository;
