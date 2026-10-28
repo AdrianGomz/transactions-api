@@ -114,7 +114,7 @@ Each run creates seven mock transaction records and retrieves them through GET: 
 
 The Docker health check uses readiness. Readiness includes the database; liveness only includes application availability. A stopped database therefore makes readiness return HTTP 503/DOWN while liveness remains HTTP 200/UP. Provider execution is never called from probes. This behavior and database recovery were verified in a separate Compose project with fresh data, leaving the development database available.
 
-Only the health Actuator endpoint is exposed. Error responses include correlation IDs, and normal execution/query error logs include safe diagnostic identifiers and cause classes. To inspect container logs:
+Only the health Actuator endpoint is exposed. Error responses include request IDs, and normal execution/query error logs include safe diagnostic identifiers and cause classes. To inspect container logs:
 
 ```bash
 docker compose logs -f app
@@ -177,7 +177,7 @@ To demonstrate a provider rejection, use `accountId: acc-insufficient-funds` and
 | Final persistence failure | 503 | Previously committed PENDING may remain; execution may have occurred |
 | Unexpected provider-client exception | 500 | UNKNOWN is attempted before reporting the failure |
 
-All errors use `application/problem+json`, with `type`, `title`, `status`, `detail`, `instance`, `code`, and `correlationId`. Field violations include `fieldErrors`; execution failures include the local `transactionId`. Each response also includes an `X-Correlation-ID` header. Application failure logs use correlation ID, transaction ID, reason, and cause class without exposing raw provider/database messages in the response.
+All errors use `application/problem+json`, with `type`, `title`, `status`, `detail`, `instance`, `code`, and `requestId`. Field violations include `fieldErrors`; execution failures include the local `transactionId`. Each response also includes an `X-Request-ID` header. Application failure logs use request ID, transaction ID, reason, and cause class without exposing raw provider/database messages in the response.
 
 `ExecuteTransactionService` is a Spring `@Service` using constructor injection. It commits the initial PENDING record, performs one provider invocation, then commits the outcome using the repository's independent transactions. It has no surrounding database transaction. Final-write failures take precedence over provider errors, so the API does not claim UNKNOWN was stored if that write failed. Unexpected client exceptions are treated conservatively and do not trigger a retry. The local clock is injected, and backward clock adjustments cannot produce an updatedAt earlier than creation.
 
@@ -208,7 +208,7 @@ All parameters are optional. Omit filters to query all stored records; supplied 
 
 The response is HTTP 200 with `{ "items": [...], "page": 0, "limit": 20, "hasNext": false }`. Each item uses the same transaction shape as POST, including null provider fields for unresolved records and controlled rejection details for rejected records. Results sort by `createdAt DESC, id DESC`, with the ID resolving timestamp ties. Fetch the next page by incrementing page while hasNext is true. Empty matches and out-of-range pages return an empty items array with hasNext false.
 
-Explicitly empty, blank, malformed, out-of-range, or repeated supported parameters return 400 with code INVALID_REQUEST and a descriptive fieldErrors entry. Pagination defaults apply only when omitted. Unknown query parameters are ignored for forward compatibility. Storage failures return 503 with code STORAGE_UNAVAILABLE and a correlation ID; no transaction ID is invented for a read failure. GET can safely be repeated.
+Explicitly empty, blank, malformed, out-of-range, or repeated supported parameters return 400 with code INVALID_REQUEST and a descriptive fieldErrors entry. Pagination defaults apply only when omitted. Unknown query parameters are ignored for forward compatibility. Storage failures return 503 with code STORAGE_UNAVAILABLE and a request ID; no transaction ID is invented for a read failure. GET can safely be repeated.
 
 `QueryTransactionsService` is a Spring `@Service` and only calls the repository. The controller parses/validates query values before database access and maps the result to the public page response. It never invokes the provider or changes transaction state. Offset arithmetic uses 64-bit values, but deep offsets still cost database work. Concurrent writes can shift pages, so this is not snapshot pagination; cursor pagination remains a future option. No total-count query is issued.
 
@@ -322,7 +322,7 @@ api/
   request/     CreateTransactionRequest, TransactionQueryParser
   response/    TransactionResponse, TransactionPageResponse
   error/       ApiExceptionHandler, InvalidRequestException
-  filter/      CorrelationIdFilter
+  filter/      RequestIdFilter
 ```
 
 Controller integration tests mirror the `api.controller` package. Request/response mapping stays with the corresponding types, and `TransactionQueryParser` handles query parameter conversion and validation.

@@ -27,7 +27,7 @@ Required deliverables: source in Git, working POST and GET endpoints, provider m
 | Tests | Boot-managed JUnit and Mockito; Testcontainers PostgreSQL; WireMock | Fast business-rule tests plus real database and HTTP integration checks. |
 | Local execution | Dockerfile and Docker Compose | Bring up application, database, and provider mock together. |
 | Documentation | README, versioned OpenAPI YAML, curl examples | Make behavior and setup reviewable without additional services. |
-| Operations | Actuator health and normal error logging | Support container health checks and trace failures with correlation IDs. |
+| Operations | Actuator health and normal error logging | Support container health checks and trace failures with request IDs. |
 
 Pin compatible released dependency and container versions during bootstrap. Use Boot's dependency management where available and check compatibility for independently versioned tools. Swagger UI is optional; the OpenAPI file is sufficient for the initial deliverable.
 
@@ -58,7 +58,7 @@ api/controller/              REST endpoints
 api/request/                 request records and query parser
 api/response/                response records and mapping
 api/error/                   HTTP exception handling
-api/filter/                  correlation ID filter
+api/filter/                  request ID filter
 application/                 execution and query services
 application/port/            repository and provider interfaces
 domain/                      transaction model, statuses, business rules
@@ -107,7 +107,7 @@ Proposed response behavior:
 
 Returning 201 for a provider rejection means a transaction record was created; `status` communicates the financial result. Document this explicitly. A valid provider rejection body is authoritative under the supplied mock contract, including when delivered with a 5xx status. An arbitrary 5xx without that valid body does not prove rejection.
 
-Use a consistent `application/problem+json` error shape with an application error code, field errors when applicable, correlation ID, and local transaction ID when one exists. Do not return raw upstream errors or stack traces. Provider rejection code/message can be stored and exposed through a controlled mapping.
+Use a consistent `application/problem+json` error shape with an application error code, field errors when applicable, request ID, and local transaction ID when one exists. Do not return raw upstream errors or stack traces. Provider rejection code/message can be stored and exposed through a controlled mapping.
 
 ### GET /transactions
 

@@ -112,7 +112,7 @@ class PostTransactionsTests {
 		assertThat(stored.details().description()).isEqualTo("Transfer received");
 		assertThat(stored.createdAt().toString()).isEqualTo(body.get("createdAt").asString());
 		assertThat(response.headers().firstValue("Location")).isEmpty();
-		UUID.fromString(response.headers().firstValue("X-Correlation-ID").orElseThrow());
+		UUID.fromString(response.headers().firstValue("X-Request-ID").orElseThrow());
 		verifyOneExecution();
 	}
 
@@ -324,8 +324,8 @@ class PostTransactionsTests {
 		assertThat(body.get("type").asString()).isEqualTo("about:blank");
 		assertThat(body.get("code").asString()).isEqualTo(code);
 		assertThat(body.get("instance").asString()).isEqualTo("/transactions");
-		UUID.fromString(body.get("correlationId").asString());
-		assertThat(body.get("correlationId").asString()).isEqualTo(response.headers().firstValue("X-Correlation-ID").orElseThrow());
+		UUID.fromString(body.get("requestId").asString());
+		assertThat(body.get("requestId").asString()).isEqualTo(response.headers().firstValue("X-Request-ID").orElseThrow());
 		assertThat(body.has("stackTrace")).isFalse();
 		assertThat(body.has("exception")).isFalse();
 		return body;

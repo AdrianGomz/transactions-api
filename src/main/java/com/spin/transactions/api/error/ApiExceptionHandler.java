@@ -3,7 +3,7 @@ package com.spin.transactions.api.error;
 import java.net.URI;
 import java.util.List;
 
-import com.spin.transactions.api.filter.CorrelationIdFilter;
+import com.spin.transactions.api.filter.RequestIdFilter;
 import com.spin.transactions.application.TransactionExecutionException;
 import com.spin.transactions.application.TransactionQueryException;
 import com.spin.transactions.domain.BusinessRuleViolationException;
@@ -46,7 +46,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
 	@ExceptionHandler(TransactionQueryException.class)
 	ResponseEntity<Object> queryFailure(TransactionQueryException exception, HttpServletRequest request) {
-		log.error("Query failed: correlationId={}, causeType={}", request.getAttribute(CorrelationIdFilter.ATTRIBUTE),
+		log.error("Query failed: requestId={}, causeType={}", request.getAttribute(RequestIdFilter.ATTRIBUTE),
 				exception.getCause().getClass().getSimpleName());
 		return response(problem(503, "STORAGE_UNAVAILABLE", "Transaction storage is temporarily unavailable.", request),
 				HttpHeaders.EMPTY);
@@ -70,17 +70,17 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 		};
 		var problem = problem(status, exception.reason().name(), detail, request);
 		problem.setProperty("transactionId", exception.transactionId());
-		log.error("Execution failed: correlationId={}, transactionId={}, reason={}, causeType={}",
-				request.getAttribute(CorrelationIdFilter.ATTRIBUTE), exception.transactionId(), exception.reason(),
+		log.error("Execution failed: requestId={}, transactionId={}, reason={}, causeType={}",
+				request.getAttribute(RequestIdFilter.ATTRIBUTE), exception.transactionId(), exception.reason(),
 				exception.getCause() == null ? "none" : exception.getCause().getClass().getSimpleName());
 		return response(problem, HttpHeaders.EMPTY);
 	}
 
 	@ExceptionHandler(Exception.class)
 	ResponseEntity<Object> unexpected(Exception exception, HttpServletRequest request) {
-		log.error("Request failed: correlationId={}, causeType={}", request.getAttribute(CorrelationIdFilter.ATTRIBUTE),
+		log.error("Request failed: requestId={}, causeType={}", request.getAttribute(RequestIdFilter.ATTRIBUTE),
 				exception.getClass().getSimpleName());
-		return response(problem(500, "INTERNAL_ERROR", "An unexpected error occurred. Contact support with the correlation ID.", request),
+		return response(problem(500, "INTERNAL_ERROR", "An unexpected error occurred. Contact support with the request ID.", request),
 				HttpHeaders.EMPTY);
 	}
 
@@ -109,7 +109,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 		problem.setType(URI.create("about:blank"));
 		problem.setInstance(URI.create(request.getRequestURI()));
 		problem.setProperty("code", code);
-		problem.setProperty("correlationId", request.getAttribute(CorrelationIdFilter.ATTRIBUTE));
+		problem.setProperty("requestId", request.getAttribute(RequestIdFilter.ATTRIBUTE));
 		return problem;
 	}
 

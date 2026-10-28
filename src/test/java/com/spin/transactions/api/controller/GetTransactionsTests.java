@@ -206,7 +206,7 @@ class GetTransactionsTests {
 		var response = sendGet(query);
 		assertThat(response.statusCode()).isEqualTo(200);
 		assertThat(response.headers().firstValue("Content-Type").orElseThrow()).startsWith("application/json");
-		UUID.fromString(response.headers().firstValue("X-Correlation-ID").orElseThrow());
+		UUID.fromString(response.headers().firstValue("X-Request-ID").orElseThrow());
 		return mapper.readTree(response.body());
 	}
 
@@ -224,9 +224,9 @@ class GetTransactionsTests {
 		assertThat(body.get("status").intValue()).isEqualTo(status);
 		assertThat(body.get("code").asString()).isEqualTo(code);
 		assertThat(body.get("instance").asString()).isEqualTo("/transactions");
-		UUID.fromString(body.get("correlationId").asString());
-		assertThat(body.get("correlationId").asString())
-				.isEqualTo(response.headers().firstValue("X-Correlation-ID").orElseThrow());
+		UUID.fromString(body.get("requestId").asString());
+		assertThat(body.get("requestId").asString())
+				.isEqualTo(response.headers().firstValue("X-Request-ID").orElseThrow());
 		return body;
 	}
 

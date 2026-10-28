@@ -12,17 +12,17 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 @Component
-public class CorrelationIdFilter extends OncePerRequestFilter {
+public class RequestIdFilter extends OncePerRequestFilter {
 
-	public static final String ATTRIBUTE = CorrelationIdFilter.class.getName() + ".correlationId";
+	public static final String ATTRIBUTE = RequestIdFilter.class.getName() + ".requestId";
 
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
 			throws ServletException, IOException {
-		var id = UUID.randomUUID().toString();
-		request.setAttribute(ATTRIBUTE, id);
-		response.setHeader("X-Correlation-ID", id);
-		try (var ignored = MDC.putCloseable("correlationId", id)) {
+		var requestId = UUID.randomUUID().toString();
+		request.setAttribute(ATTRIBUTE, requestId);
+		response.setHeader("X-Request-ID", requestId);
+		try (var ignored = MDC.putCloseable("requestId", requestId)) {
 			chain.doFilter(request, response);
 		}
 	}

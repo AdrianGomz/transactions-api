@@ -99,7 +99,7 @@ paths:
                 detail: Use Content-Type application/json.
                 instance: /transactions
                 code: UNSUPPORTED_MEDIA_TYPE
-                correlationId: 3182e484-d22b-49ef-85dc-c32ed064db92
+                requestId: 3182e484-d22b-49ef-85dc-c32ed064db92
         '422':
           description: An amount or currency rule was violated. Nothing is persisted and the provider is not called.
           content:
@@ -115,7 +115,7 @@ paths:
                     detail: One or more transaction rules were violated.
                     instance: /transactions
                     code: BUSINESS_RULE_VIOLATION
-                    correlationId: 3182e484-d22b-49ef-85dc-c32ed064db92
+                    requestId: 3182e484-d22b-49ef-85dc-c32ed064db92
                     fieldErrors:
                       - field: amount
                         code: AMOUNT_TOO_SMALL
@@ -128,7 +128,7 @@ paths:
                     detail: One or more transaction rules were violated.
                     instance: /transactions
                     code: BUSINESS_RULE_VIOLATION
-                    correlationId: 3182e484-d22b-49ef-85dc-c32ed064db92
+                    requestId: 3182e484-d22b-49ef-85dc-c32ed064db92
                     fieldErrors:
                       - field: amount
                         code: DEBIT_LIMIT_EXCEEDED
@@ -141,7 +141,7 @@ paths:
                     detail: One or more transaction rules were violated.
                     instance: /transactions
                     code: BUSINESS_RULE_VIOLATION
-                    correlationId: 3182e484-d22b-49ef-85dc-c32ed064db92
+                    requestId: 3182e484-d22b-49ef-85dc-c32ed064db92
                     fieldErrors:
                       - field: currency
                         code: UNSUPPORTED_CURRENCY
@@ -154,7 +154,7 @@ paths:
                     detail: One or more transaction rules were violated.
                     instance: /transactions
                     code: BUSINESS_RULE_VIOLATION
-                    correlationId: 3182e484-d22b-49ef-85dc-c32ed064db92
+                    requestId: 3182e484-d22b-49ef-85dc-c32ed064db92
                     fieldErrors:
                       - field: amount
                         code: INVALID_AMOUNT_PRECISION
@@ -174,7 +174,7 @@ paths:
                 detail: The provider outcome could not be confirmed. Do not automatically resubmit.
                 instance: /transactions
                 code: PROVIDER_ERROR
-                correlationId: 3182e484-d22b-49ef-85dc-c32ed064db92
+                requestId: 3182e484-d22b-49ef-85dc-c32ed064db92
                 transactionId: 2b05f5ec-1d5d-4ade-9697-52f3b6a782dd
         '503':
           $ref: '#/components/responses/StorageUnavailable'
@@ -191,7 +191,7 @@ paths:
                 detail: The provider did not respond in time. Execution may have occurred. Do not automatically resubmit.
                 instance: /transactions
                 code: PROVIDER_TIMEOUT
-                correlationId: 3182e484-d22b-49ef-85dc-c32ed064db92
+                requestId: 3182e484-d22b-49ef-85dc-c32ed064db92
                 transactionId: 2b05f5ec-1d5d-4ade-9697-52f3b6a782dd
     get:
       tags: [Transactions]
@@ -434,7 +434,7 @@ components:
           type: boolean
     Problem:
       type: object
-      required: [type, title, status, detail, instance, code, correlationId]
+      required: [type, title, status, detail, instance, code, requestId]
       properties:
         type:
           type: string
@@ -453,11 +453,11 @@ components:
         instance:
           type: string
           format: uri-reference
-          description: Request path; correlationId identifies the individual request.
+          description: Request path; requestId identifies the individual request.
         code:
           type: string
           enum: [INVALID_REQUEST, BUSINESS_RULE_VIOLATION, UNSUPPORTED_MEDIA_TYPE, PROVIDER_ERROR, PROVIDER_TIMEOUT, STORAGE_UNAVAILABLE, INTERNAL_ERROR]
-        correlationId:
+        requestId:
           type: string
           format: uuid
           description: Server-generated ID for finding this request in logs.
@@ -501,7 +501,7 @@ components:
                 detail: One or more request fields are invalid.
                 instance: /transactions
                 code: INVALID_REQUEST
-                correlationId: 3182e484-d22b-49ef-85dc-c32ed064db92
+                requestId: 3182e484-d22b-49ef-85dc-c32ed064db92
                 fieldErrors:
                   - field: accountId
                     code: REQUIRED
@@ -514,7 +514,7 @@ components:
                 detail: One or more query parameters are invalid.
                 instance: /transactions
                 code: INVALID_REQUEST
-                correlationId: 3182e484-d22b-49ef-85dc-c32ed064db92
+                requestId: 3182e484-d22b-49ef-85dc-c32ed064db92
                 fieldErrors:
                   - field: limit
                     code: INVALID_VALUE
@@ -538,7 +538,7 @@ components:
                 detail: Transaction storage is temporarily unavailable.
                 instance: /transactions
                 code: STORAGE_UNAVAILABLE
-                correlationId: 3182e484-d22b-49ef-85dc-c32ed064db92
+                requestId: 3182e484-d22b-49ef-85dc-c32ed064db92
             finalSaveFailed:
               value:
                 type: about:blank
@@ -547,7 +547,7 @@ components:
                 detail: The execution result could not be saved. Execution may have occurred. Do not automatically resubmit.
                 instance: /transactions
                 code: STORAGE_UNAVAILABLE
-                correlationId: 3182e484-d22b-49ef-85dc-c32ed064db92
+                requestId: 3182e484-d22b-49ef-85dc-c32ed064db92
                 transactionId: 2b05f5ec-1d5d-4ade-9697-52f3b6a782dd
     InternalError:
       description: Unexpected application error. POST may have side effects; do not automatically retry. Include transactionId when available.
@@ -559,10 +559,10 @@ components:
             type: about:blank
             title: Internal Server Error
             status: 500
-            detail: An unexpected error occurred. Contact support with the correlation ID.
+            detail: An unexpected error occurred. Contact support with the request ID.
             instance: /transactions
             code: INTERNAL_ERROR
-            correlationId: 3182e484-d22b-49ef-85dc-c32ed064db92
+            requestId: 3182e484-d22b-49ef-85dc-c32ed064db92
   examples:
     ExecutedTransaction:
       summary: Approved credit with the provider balance
