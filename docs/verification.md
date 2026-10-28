@@ -4,13 +4,15 @@ Verified locally on October 28, 2026. All provider calls used WireMock fixtures;
 
 ## Automated regression suite
 
-`./mvnw --batch-mode --no-transfer-progress clean verify` passed **282 tests**, with zero failures, errors, or skipped tests, after removing optional monitoring instrumentation. The host used JDK 27 while compiling with Java release 21. Coverage includes domain rules, concurrent persistence updates, provider HTTP faults, POST/GET integration, and storage failures. The packaged JAR was checked to confirm the deleted decorator class was absent.
+`./mvnw --batch-mode --no-transfer-progress clean verify` passed **282 tests**, with zero failures, errors, or skipped tests, after simplifying console logging. The host used JDK 27 while compiling with Java release 21. Coverage includes domain rules, concurrent persistence updates, provider HTTP faults, POST/GET integration, and storage failures. Log-output assertions and request-filter tests are omitted; the existing HTTP tests continue to verify the request ID header and error-response field as part of the API contract.
+
+Compose configuration rendering confirmed that `APP_LOG_LEVEL=DEBUG` reaches the app container.
 
 ## Container acceptance
 
 `docker compose build app` built the source using the pinned Java 21 JDK image and Maven Wrapper. The runtime image uses Temurin **21.0.12.1**, confirmed with `java -version`, and runs as **UID/GID 10001**, confirmed with `id`. Image packaging skips tests; the regression suite runs separately.
 
-After the cleanup, the rebuilt app, PostgreSQL, and WireMock were started in an isolated Compose project named `spin-transactions-remove-check`, using a fresh database and host ports 18082, 55433, and 18083. All three containers became healthy.
+After the monitoring cleanup, before the console logging additions, the rebuilt app, PostgreSQL, and WireMock were started in an isolated Compose project named `spin-transactions-remove-check`, using a fresh database and host ports 18082, 55433, and 18083. All three containers became healthy.
 
 `python3 scripts/smoke.py --base-url http://127.0.0.1:18082` passed:
 

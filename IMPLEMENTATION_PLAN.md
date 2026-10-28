@@ -1,6 +1,6 @@
 # Transaction Execution API — implementation plan
 
-Status: Steps 1–8 are complete. Both endpoints, Docker packaging, health probes, and a repeatable smoke script are implemented. The provider port is wired directly to the REST adapter. Custom monitoring instrumentation is outside the requested challenge scope. A clean build passed all 282 tests, and the rebuilt Docker image passed the smoke check with only health Actuator endpoints exposed. See [README.md](README.md) for commands and design details, [docs/verification.md](docs/verification.md) for evidence/limits, [docs/openapi.yaml](docs/openapi.yaml) for the contract, and [docs/api-decisions.md](docs/api-decisions.md) for assumptions. Next: step 9, final code/documentation review and repository handoff.
+Status: Steps 1–8 are complete. Both endpoints, Docker packaging, health probes, and a repeatable smoke script are implemented. The provider port is wired directly to the REST adapter. Console logging covers execution outcomes/failures and optional DEBUG diagnostics; custom monitoring instrumentation remains outside the requested challenge scope. A clean build passed all 282 tests. The Docker smoke check passed with only health Actuator endpoints exposed before the logging additions. See [README.md](README.md) for commands and design details, [docs/verification.md](docs/verification.md) for evidence/limits, [docs/openapi.yaml](docs/openapi.yaml) for the contract, and [docs/api-decisions.md](docs/api-decisions.md) for assumptions. Next: step 9, final code/documentation review and repository handoff.
 
 Working agreement: announce the intended work before each implementation step, complete and verify that step, then summarize the result for review before moving to the next step.
 
@@ -27,7 +27,7 @@ Required deliverables: source in Git, working POST and GET endpoints, provider m
 | Tests | Boot-managed JUnit and Mockito; Testcontainers PostgreSQL; WireMock | Fast business-rule tests plus real database and HTTP integration checks. |
 | Local execution | Dockerfile and Docker Compose | Bring up application, database, and provider mock together. |
 | Documentation | README, versioned OpenAPI YAML, curl examples | Make behavior and setup reviewable without additional services. |
-| Operations | Actuator health and normal error logging | Support container health checks and trace failures with request IDs. |
+| Operations | Actuator health; SLF4J/Logback console logging with Lombok `@Slf4j` | Trace transaction outcomes/failures with request IDs; opt into detailed application logs with `APP_LOG_LEVEL=DEBUG`. |
 
 Pin compatible released dependency and container versions during bootstrap. Use Boot's dependency management where available and check compatibility for independently versioned tools. Swagger UI is optional; the OpenAPI file is sufficient for the initial deliverable.
 

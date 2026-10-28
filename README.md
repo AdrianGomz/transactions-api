@@ -88,6 +88,7 @@ Defaults work without an environment file. To override them, copy `.env.example`
 | `POSTGRES_PORT` | `5432` | PostgreSQL host port |
 | `WIREMOCK_PORT` | `8081` | WireMock host port |
 | `APP_PORT` | `8080` | Compose app host port; the container always listens on 8080 |
+| `APP_LOG_LEVEL` | `INFO` | Application log level for host and Compose runs; use `DEBUG` for request/provider diagnostics |
 | `DB_URL` | Derived from database name and port | Optional complete JDBC URL override for a host-run application |
 | `PROVIDER_BASE_URL` | Derived from WireMock port | Host-run provider HTTP(S) origin, without path, query, fragment, or credentials |
 | `PROVIDER_CONNECT_TIMEOUT` | `1s` | Connection establishment timeout |
@@ -114,11 +115,17 @@ Each run creates seven mock transaction records and retrieves them through GET: 
 
 The Docker health check uses readiness. Readiness includes the database; liveness only includes application availability. A stopped database therefore makes readiness return HTTP 503/DOWN while liveness remains HTTP 200/UP. Provider execution is never called from probes. This behavior and database recovery were verified in a separate Compose project with fresh data, leaving the development database available.
 
-Only the health Actuator endpoint is exposed. Error responses include request IDs, and normal execution/query error logs include safe diagnostic identifiers and cause classes. To inspect container logs:
+Only the health Actuator endpoint is exposed. Application logging uses SLF4J with Spring Boot's default Logback implementation and Lombok `@Slf4j` logger fields. Logs go to the console; configuration stays in `application.properties`. During an HTTP request, every log line includes `[requestId=...]` from MDC. Startup/background lines have an empty request ID. To inspect container logs:
 
 ```bash
 docker compose logs -f app
 ```
+
+The default application level is `INFO`. Saved EXECUTED/REJECTED outcomes produce one INFO summary with the local transaction ID and status. Provider uncertainty produces a WARN entry; storage/unexpected failures produce ERROR entries with safe reason codes, whether execution was attempted, and exception class names where available. The exception handler owns the main failure entry, avoiding repeated error logs in each layer. Backward clock adjustments also produce a WARN entry.
+
+Set `APP_LOG_LEVEL=DEBUG` in `.env` and restart the host application or recreate the app container with `docker compose up -d --wait app` to include persistence stages/conflicts, provider HTTP status and response-validation reasons, and query page/result counts. Successful queries and validation failures stay at DEBUG to limit routine log volume. The setting changes only the application logger namespace; framework logging retains its normal defaults. The request ID filter only establishes the request attribute, response header, and MDC context; it does not emit logs. The console pattern supplies the request ID, so log messages do not repeat it. Transaction-related messages include the local transaction ID where available.
+
+Application log statements omit request/response bodies, account IDs, amounts, balances, descriptions, and raw exception messages. They use local transaction IDs, request IDs, controlled codes, and exception class names for diagnosis. No file appender, external log collector, metrics instrumentation, or monitoring agent is configured.
 
 ## Provider mock
 

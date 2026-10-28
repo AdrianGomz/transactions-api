@@ -8,8 +8,7 @@ import com.spin.transactions.application.TransactionExecutionException;
 import com.spin.transactions.application.TransactionQueryException;
 import com.spin.transactions.domain.BusinessRuleViolationException;
 import jakarta.servlet.http.HttpServletRequest;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -24,13 +23,13 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 @RestControllerAdvice
+@Slf4j
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
-
-	private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
 	@ExceptionHandler(BusinessRuleViolationException.class)
 	ResponseEntity<Object> businessRules(BusinessRuleViolationException exception, HttpServletRequest request) {
 		var problem = problem(422, "BUSINESS_RULE_VIOLATION", exception.getMessage(), request);
+		log.debug("Request rejected: code=BUSINESS_RULE_VIOLATION, violations={}", exception.violations().size());
 		problem.setProperty("fieldErrors", exception.violations().stream()
 				.map(v -> new FieldError(v.field(), v.code().name(), v.message())).toList());
 		return response(problem, HttpHeaders.EMPTY);
@@ -41,12 +40,13 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 		var problem = problem(400, "INVALID_REQUEST", "GET".equals(request.getMethod())
 				? "One or more query parameters are invalid." : "One or more request fields are invalid.", request);
 		problem.setProperty("fieldErrors", List.of(new FieldError(exception.field(), "INVALID_VALUE", exception.getMessage())));
+		log.debug("Request rejected: code=INVALID_REQUEST");
 		return response(problem, HttpHeaders.EMPTY);
 	}
 
 	@ExceptionHandler(TransactionQueryException.class)
 	ResponseEntity<Object> queryFailure(TransactionQueryException exception, HttpServletRequest request) {
-		log.error("Query failed: requestId={}, causeType={}", request.getAttribute(RequestIdFilter.ATTRIBUTE),
+		log.error("Query failed: reason=STORAGE_UNAVAILABLE, causeType={}",
 				exception.getCause().getClass().getSimpleName());
 		return response(problem(503, "STORAGE_UNAVAILABLE", "Transaction storage is temporarily unavailable.", request),
 				HttpHeaders.EMPTY);
@@ -70,15 +70,22 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 		};
 		var problem = problem(status, exception.reason().name(), detail, request);
 		problem.setProperty("transactionId", exception.transactionId());
-		log.error("Execution failed: requestId={}, transactionId={}, reason={}, causeType={}",
-				request.getAttribute(RequestIdFilter.ATTRIBUTE), exception.transactionId(), exception.reason(),
-				exception.getCause() == null ? "none" : exception.getCause().getClass().getSimpleName());
+		if (exception.reason() == TransactionExecutionException.Reason.PROVIDER_TIMEOUT
+				|| exception.reason() == TransactionExecutionException.Reason.PROVIDER_ERROR) {
+			log.warn("Transaction execution uncertain: transactionId={}, reason={}, executionAttempted={}",
+					exception.transactionId(), exception.reason(), exception.executionAttempted());
+		}
+		else {
+			log.error("Transaction execution failed: transactionId={}, reason={}, executionAttempted={}, causeType={}",
+					exception.transactionId(), exception.reason(), exception.executionAttempted(),
+					exception.getCause() == null ? "none" : exception.getCause().getClass().getSimpleName());
+		}
 		return response(problem, HttpHeaders.EMPTY);
 	}
 
 	@ExceptionHandler(Exception.class)
 	ResponseEntity<Object> unexpected(Exception exception, HttpServletRequest request) {
-		log.error("Request failed: requestId={}, causeType={}", request.getAttribute(RequestIdFilter.ATTRIBUTE),
+		log.error("Request failed: reason=INTERNAL_ERROR, causeType={}",
 				exception.getClass().getSimpleName());
 		return response(problem(500, "INTERNAL_ERROR", "An unexpected error occurred. Contact support with the request ID.", request),
 				HttpHeaders.EMPTY);
@@ -100,6 +107,12 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 						case "Size" -> "INVALID_LENGTH";
 						default -> "INVALID_VALUE";
 					}, error.getDefaultMessage())).toList());
+		}
+		if (status.is5xxServerError()) {
+			log.error("Request handling failed: status={}, causeType={}", status.value(), exception.getClass().getSimpleName());
+		}
+		else {
+			log.debug("Request rejected: status={}, code={}", status.value(), code);
 		}
 		return response(problem, headers);
 	}

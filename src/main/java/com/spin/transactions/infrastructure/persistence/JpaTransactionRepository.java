@@ -14,12 +14,14 @@ import com.spin.transactions.domain.Transaction;
 import com.spin.transactions.domain.TransactionStatus;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Repository
 @RequiredArgsConstructor
+@Slf4j
 @Transactional(propagation = Propagation.REQUIRES_NEW)
 public class JpaTransactionRepository implements TransactionRepository {
 
@@ -70,6 +72,7 @@ public class JpaTransactionRepository implements TransactionRepository {
 				.setParameter("description", details.description())
 				.executeUpdate();
 		if (updated != 1) {
+			log.debug("Transaction outcome update conflict: transactionId={}, updatedRows={}", transaction.id(), updated);
 			throw new TransactionUpdateConflictException(transaction.id());
 		}
 		return entityManager.find(TransactionEntity.class, transaction.id()).toDomain();

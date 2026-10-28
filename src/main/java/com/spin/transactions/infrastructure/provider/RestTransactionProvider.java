@@ -14,6 +14,7 @@ import com.spin.transactions.domain.RejectionReason;
 import com.spin.transactions.domain.TransactionDetails;
 import com.spin.transactions.domain.TransactionType;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.springframework.http.InvalidMediaTypeException;
 import org.springframework.http.MediaType;
@@ -29,6 +30,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public final class RestTransactionProvider implements TransactionProvider {
 
 	private static final int MAX_RESPONSE_BYTES = 64 * 1024;
@@ -44,6 +46,7 @@ public final class RestTransactionProvider implements TransactionProvider {
 	public ProviderResult execute(TransactionDetails details) {
 		Objects.requireNonNull(details);
 		var request = new ProviderRequest(details.accountId(), details.type(), details.amount(), details.currency());
+		log.debug("Provider execution started");
 		try {
 			return client.post().uri("/provider/v1/execute")
 					.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON)
@@ -53,49 +56,57 @@ public final class RestTransactionProvider implements TransactionProvider {
 		catch (RestClientException exception) {
 			for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
 				if (cause instanceof SocketTimeoutException || cause instanceof ConnectionRequestTimeoutException) {
+					log.debug("Provider request timed out: causeType={}", cause.getClass().getSimpleName());
 					return new ProviderResult.Uncertain(ExecutionFailure.PROVIDER_TIMEOUT);
 				}
 			}
-			return uncertain();
+			log.debug("Provider request failed: causeType={}", exception.getClass().getSimpleName());
+			return uncertain("TRANSPORT_ERROR");
 		}
 	}
 
 	private ProviderResult readResult(ClientHttpResponse response) throws IOException {
 		try {
+			int status = response.getStatusCode().value();
+			log.debug("Provider response received: httpStatus={}", status);
 			var contentType = response.getHeaders().getContentType();
 			if (contentType == null || !(MediaType.APPLICATION_JSON.isCompatibleWith(contentType)
 					|| "json".equals(contentType.getSubtypeSuffix()))) {
-				return uncertain();
+				return uncertain("UNSUPPORTED_CONTENT_TYPE");
 			}
 			byte[] body = response.getBody().readNBytes(MAX_RESPONSE_BYTES + 1);
 			if (body.length == 0 || body.length > MAX_RESPONSE_BYTES) {
-				return uncertain();
+				return uncertain("INVALID_BODY_SIZE");
 			}
 			var json = mapper.readTree(body);
 			if (json == null || !json.isObject()) {
-				return uncertain();
+				return uncertain("INVALID_JSON_SHAPE");
 			}
-			int status = response.getStatusCode().value();
 			if (status == 200 && "APPROVED".equals(text(json, "status"))) {
 				var id = text(json, "transactionId");
 				var executedAt = text(json, "executedAt");
 				var balance = json.get("balance");
 				if (id != null && executedAt != null && balance != null && balance.isNumber()) {
-					return new ProviderResult.Approved(id, balance.decimalValue(), Instant.parse(executedAt));
+					var approved = new ProviderResult.Approved(id, balance.decimalValue(), Instant.parse(executedAt));
+					log.debug("Provider execution approved");
+					return approved;
 				}
 			}
 			if (status >= 400 && status <= 599 && "REJECTED".equals(text(json, "status"))) {
 				var code = text(json, "code");
 				if (code != null && text(json, "message") != null) {
-					return new ProviderResult.Rejected("INSUFFICIENT_FUNDS".equals(code)
-							? RejectionReason.INSUFFICIENT_FUNDS : RejectionReason.PROVIDER_REJECTED);
+					var reason = "INSUFFICIENT_FUNDS".equals(code)
+							? RejectionReason.INSUFFICIENT_FUNDS : RejectionReason.PROVIDER_REJECTED;
+					log.debug("Provider execution rejected: rejection={}", reason);
+					return new ProviderResult.Rejected(reason);
 				}
 			}
-			return uncertain();
+			return uncertain("UNEXPECTED_RESPONSE_CONTRACT");
 		}
 		catch (JacksonException | DateTimeParseException | InvalidMediaTypeException exception) {
 			// Malformed provider data is not proof that the financial operation was rejected.
-			return uncertain();
+			log.debug("Provider response parsing failed: causeType={}", exception.getClass().getSimpleName());
+			return uncertain("MALFORMED_RESPONSE");
 		}
 	}
 
@@ -104,7 +115,8 @@ public final class RestTransactionProvider implements TransactionProvider {
 		return value != null && value.isTextual() && !value.asString().isBlank() ? value.asString() : null;
 	}
 
-	private static ProviderResult.Uncertain uncertain() {
+	private static ProviderResult.Uncertain uncertain(String reason) {
+		log.debug("Provider outcome could not be confirmed: reason={}", reason);
 		return new ProviderResult.Uncertain(ExecutionFailure.PROVIDER_ERROR);
 	}
 
