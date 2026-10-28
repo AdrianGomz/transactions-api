@@ -2,16 +2,12 @@ package com.spin.transactions.configuration;
 
 import com.spin.transactions.application.port.TransactionProvider;
 import com.spin.transactions.infrastructure.provider.RestTransactionProvider;
-import com.spin.transactions.infrastructure.provider.MeteredTransactionProvider;
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.observation.ObservationRegistry;
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.core5.util.Timeout;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -47,16 +43,12 @@ public class ProviderClientConfiguration {
 	}
 
 	@Bean
-	TransactionProvider transactionProvider(CloseableHttpClient providerHttpClient, ProviderProperties properties,
-			ObjectProvider<ObservationRegistry> observationRegistries, ObjectProvider<MeterRegistry> meterRegistries) {
+	TransactionProvider transactionProvider(CloseableHttpClient providerHttpClient, ProviderProperties properties) {
 		var client = RestClient.builder()
 				.baseUrl(properties.baseUrl())
 				.requestFactory(new HttpComponentsClientHttpRequestFactory(providerHttpClient))
-				.observationRegistry(observationRegistries.getIfAvailable(() -> ObservationRegistry.NOOP))
 				.build();
-		var provider = new RestTransactionProvider(client);
-		var meters = meterRegistries.getIfAvailable();
-		return meters == null ? provider : new MeteredTransactionProvider(provider, meters);
+		return new RestTransactionProvider(client);
 	}
 
 }

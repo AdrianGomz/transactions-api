@@ -1,6 +1,6 @@
 # Transaction Execution API — implementation plan
 
-Status: Steps 1–8 are complete. Both endpoints, Docker packaging, health probes, structured container logs, and bounded metrics are implemented. Maven verification passed all 287 tests. A fresh isolated Compose stack passed the repeatable smoke script on Java 21 as a non-root user; database readiness failure/recovery and graceful shutdown were also verified. The temporary stack was removed afterward. See [README.md](README.md) for commands and design details, [docs/verification.md](docs/verification.md) for evidence/limits, [docs/openapi.yaml](docs/openapi.yaml) for the contract, and [docs/api-decisions.md](docs/api-decisions.md) for assumptions. Next: step 9, final code/documentation review and repository handoff.
+Status: Steps 1–8 are complete. Both endpoints, Docker packaging, health probes, and a repeatable smoke script are implemented. The provider port is wired directly to the REST adapter. Custom monitoring instrumentation is outside the requested challenge scope. A clean build passed all 282 tests, and the rebuilt Docker image passed the smoke check with only health Actuator endpoints exposed. See [README.md](README.md) for commands and design details, [docs/verification.md](docs/verification.md) for evidence/limits, [docs/openapi.yaml](docs/openapi.yaml) for the contract, and [docs/api-decisions.md](docs/api-decisions.md) for assumptions. Next: step 9, final code/documentation review and repository handoff.
 
 Working agreement: announce the intended work before each implementation step, complete and verify that step, then summarize the result for review before moving to the next step.
 
@@ -27,7 +27,7 @@ Required deliverables: source in Git, working POST and GET endpoints, provider m
 | Tests | Boot-managed JUnit and Mockito; Testcontainers PostgreSQL; WireMock | Fast business-rule tests plus real database and HTTP integration checks. |
 | Local execution | Dockerfile and Docker Compose | Bring up application, database, and provider mock together. |
 | Documentation | README, versioned OpenAPI YAML, curl examples | Make behavior and setup reviewable without additional services. |
-| Operations | Actuator, structured logs, basic request/provider metrics | Diagnose failures and measure latency without building a monitoring platform. |
+| Operations | Actuator health and normal error logging | Support container health checks and trace failures with correlation IDs. |
 
 Pin compatible released dependency and container versions during bootstrap. Use Boot's dependency management where available and check compatibility for independently versioned tools. Swagger UI is optional; the OpenAPI file is sufficient for the initial deliverable.
 
@@ -171,7 +171,7 @@ If time permits, add a small repeatable load script with a documented provider d
 
 One million transactions per day is about 11.6 requests/second on average; ten million is about 116. Peak traffic, provider latency, and retained data determine the real capacity requirements.
 
-Start with a stateless application, connection reuse, bounded provider concurrency, short database transactions, bounded result pages, and selective indexes. Multiple replicas can share PostgreSQL; the provider still owns account locking. Track request/provider latency and errors, database-pool saturation, and counts of unresolved records. Do not use account IDs as metric labels.
+Start with a stateless application, connection reuse, bounded provider concurrency, short database transactions, bounded result pages, and selective indexes. Multiple replicas can share PostgreSQL; the provider still owns account locking. Monitoring integrations are outside the current implementation scope.
 
 Discuss future partitioning/retention, cursor pagination, and replica scaling in the README. Add queues only if the API changes to asynchronous acceptance. Kafka, Redis, Kubernetes, account-level locks, and a microservice split are outside the initial implementation scope.
 
@@ -188,7 +188,7 @@ Authentication/authorization is not specified by the challenge; state that the d
 | 5 — Day 2 | Provider adapter, fixture mappings, timeouts, mapping tests | Real HTTP approval, rejection, timeout, and invalid-response scenarios pass |
 | 6 — Day 2 | Execution service and POST controller | Full validation -> initial save -> HTTP -> final save -> response flow passes |
 | 7 — Day 2 | GET filters/pagination and global error handling | Retrieval and input-error tests pass |
-| 8 — Day 3 | Complete end-to-end failure tests, health/metrics, container packaging | Repeatable local verification and startup succeed |
+| 8 — Day 3 | Complete end-to-end failure tests, health checks, container packaging | Repeatable local verification and startup succeed |
 | 9 — Day 3 | README, AI-use note, examples, final review, repository handoff | Another developer can run and explain the solution from a clean checkout |
 
 Keep the final half-day available for cleanup and explaining tradeoffs. If time is tight, protect correctness, tests, and documentation before optional features.

@@ -2,7 +2,7 @@
 
 Java 21 / Spring Boot 4.1.2 implementation of the Spin backend challenge.
 
-**Current stage:** Both required endpoints, Docker packaging, health probes, structured container logs, metrics, and a repeatable smoke check are implemented. Final delivery review remains.
+**Current stage:** Both required endpoints, Docker packaging, health probes, and a repeatable smoke check are implemented. Final delivery review remains.
 
 ## Prerequisites
 
@@ -33,7 +33,6 @@ APP_PORT=8082 docker compose up --build -d --wait
 | Health | `http://localhost:8080/actuator/health` | Application health, including database connectivity |
 | Liveness | `http://localhost:8080/actuator/health/liveness` | Application availability, independent of database health |
 | Readiness | `http://localhost:8080/actuator/health/readiness` | Application readiness and database connectivity |
-| Metrics | `http://localhost:8080/actuator/metrics` | Process-local diagnostic metrics |
 | PostgreSQL | `localhost:5432` | Database `transactions`, local user `spin` |
 | WireMock | `http://localhost:8081` | External provider fixture server |
 | WireMock health | `http://localhost:8081/__admin/health` | Mock server health |
@@ -111,22 +110,11 @@ python3 scripts/smoke.py
 python3 scripts/smoke.py --base-url http://127.0.0.1:8082
 ```
 
-Each run creates seven mock transaction records and retrieves them through GET: two approvals, two rejections, and three uncertain outcomes (timeout, unstructured provider error, malformed response). It also checks validation, health/probes, and metrics. The script makes no automatic POST retries. It expects default fixtures and a provider response timeout shorter than the five-second delayed fixture; it is an acceptance check, not a load test.
+Each run creates seven mock transaction records and retrieves them through GET: two approvals, two rejections, and three uncertain outcomes (timeout, unstructured provider error, malformed response). It also checks validation and health/probes. The script makes no automatic POST retries. It expects default fixtures and a provider response timeout shorter than the five-second delayed fixture; it is an acceptance check, not a load test.
 
 The Docker health check uses readiness. Readiness includes the database; liveness only includes application availability. A stopped database therefore makes readiness return HTTP 503/DOWN while liveness remains HTTP 200/UP. Provider execution is never called from probes. This behavior and database recovery were verified in a separate Compose project with fresh data, leaving the development database available.
 
-Only health and metrics Actuator endpoints are exposed. Useful diagnostic URLs after executing requests:
-
-```bash
-curl --fail http://localhost:8080/actuator/metrics/http.server.requests
-curl --fail http://localhost:8080/actuator/metrics/http.client.requests
-curl --fail http://localhost:8080/actuator/metrics/transactions.provider.execution
-curl --fail http://localhost:8080/actuator/metrics/hikaricp.connections.active
-```
-
-Server/client observations record request counts and durations. The provider execution timer also records semantic results, so an HTTP 200 containing malformed data counts as UNKNOWN. Its labels are bounded: transaction type, APPROVED/REJECTED/UNKNOWN/ERROR, and NONE/PROVIDER_TIMEOUT/PROVIDER_ERROR/UNEXPECTED. No account or transaction IDs are metric labels. Metrics are in memory and reset on restart; UNKNOWN counts describe observed attempts, not a live count of unresolved database records. No monitoring backend or throughput benchmark is included.
-
-Compose enables ECS JSON console logs. Completion logs include method, path, HTTP status, duration, completion flag, and the request's correlation ID; they omit query strings and request bodies. Execution/query error logs include safe diagnostic identifiers and cause classes. Health/metrics requests are omitted from completion logs to limit probe noise. To inspect container logs:
+Only the health Actuator endpoint is exposed. Error responses include correlation IDs, and normal execution/query error logs include safe diagnostic identifiers and cause classes. To inspect container logs:
 
 ```bash
 docker compose logs -f app
@@ -328,4 +316,4 @@ The architecture uses ports and adapters. The REST controller validates the HTTP
 
 ## AI usage
 
-OpenAI Codex assisted with planning, the OpenAPI contract, Spring Initializr generation, local infrastructure configuration, domain/persistence/provider implementation, unit/integration tests, Docker packaging, observability, smoke checks, and verification. Design choices and generated code are reviewed incrementally with the developer. This note will be updated as implementation progresses.
+OpenAI Codex assisted with planning, the OpenAPI contract, Spring Initializr generation, local infrastructure configuration, domain/persistence/provider implementation, unit/integration tests, Docker packaging, smoke checks, and verification. Design choices and generated code are reviewed incrementally with the developer. This note will be updated as implementation progresses.

@@ -68,10 +68,6 @@ def main():
     assert invalid_query["code"] == "INVALID_REQUEST"
     print("Business-rule and query validation: passed")
 
-    for name in ["http.server.requests", "http.client.requests", "transactions.provider.execution"]:
-        metric = request(base_url, "/actuator/metrics/" + name, 200)
-        assert any(m["statistic"] == "COUNT" and m["value"] > 0 for m in metric["measurements"]), name
-        print("Recorded metric: " + name)
     print("Smoke check passed; seven mock transaction records were added.")
 
 

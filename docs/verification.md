@@ -4,15 +4,15 @@ Verified locally on October 28, 2026. All provider calls used WireMock fixtures;
 
 ## Automated regression suite
 
-`./mvnw --batch-mode --no-transfer-progress verify` passed **287 tests**, with zero failures, errors, or skipped tests. The host used JDK 27 while compiling with Java release 21. Coverage includes domain rules, concurrent persistence updates, provider HTTP faults, POST/GET integration, storage failures, and metrics behavior.
+`./mvnw --batch-mode --no-transfer-progress clean verify` passed **282 tests**, with zero failures, errors, or skipped tests, after removing optional monitoring instrumentation. The host used JDK 27 while compiling with Java release 21. Coverage includes domain rules, concurrent persistence updates, provider HTTP faults, POST/GET integration, and storage failures. The packaged JAR was checked to confirm the deleted decorator class was absent.
 
 ## Container acceptance
 
 `docker compose build app` built the source using the pinned Java 21 JDK image and Maven Wrapper. The runtime image uses Temurin **21.0.12.1**, confirmed with `java -version`, and runs as **UID/GID 10001**, confirmed with `id`. Image packaging skips tests; the regression suite runs separately.
 
-The app, PostgreSQL, and WireMock were started in an isolated Compose project named `spin-transactions-check`, using a fresh database and host ports 8082, 55432, and 18081. All three containers became healthy.
+After the cleanup, the rebuilt app, PostgreSQL, and WireMock were started in an isolated Compose project named `spin-transactions-remove-check`, using a fresh database and host ports 18082, 55433, and 18083. All three containers became healthy.
 
-`python3 scripts/smoke.py --base-url http://127.0.0.1:8082` passed:
+`python3 scripts/smoke.py --base-url http://127.0.0.1:18082` passed:
 
 - Application health, liveness, and readiness returned UP.
 - Credits/debits returned 201 and persisted EXECUTED with the expected provider balances.
@@ -20,15 +20,16 @@ The app, PostgreSQL, and WireMock were started in an isolated Compose project na
 - Provider timeout, unstructured error, and malformed response returned 504/502 and persisted UNKNOWN.
 - Every created record was retrieved through GET with the expected outcome.
 - Business-rule/query violations returned 422/400.
-- Server HTTP, client HTTP, and semantic provider execution metrics contained recorded measurements.
 
 The smoke script inserted seven mock records in the isolated database.
+
+Separate HTTP checks confirmed that non-health Actuator endpoints were not exposed (404). The provider port is now wired directly to the REST adapter.
 
 ## Failure and lifecycle checks
 
 Stopping only the isolated PostgreSQL service made `/actuator/health/readiness` return **503/DOWN**, while `/actuator/health/liveness` remained **200/UP**. Restarting the database restored a healthy stack.
 
-ECS JSON logs were parsed successfully. A normal container stop produced the `Graceful shutdown complete` log entry. This verifies the normal shutdown path, not every possible in-flight failure during termination.
+A normal container stop produced the `Graceful shutdown complete` log entry. This verifies the normal shutdown path, not every possible in-flight failure during termination.
 
 The temporary verification stack and its generated data were removed afterward. The original development PostgreSQL and WireMock services were retained.
 
