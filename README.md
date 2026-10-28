@@ -314,6 +314,19 @@ List queries sort by `created_at DESC, id DESC` and fetch `limit + 1` records to
 
 The architecture uses ports and adapters. The REST controller validates the HTTP boundary and invokes Spring-managed execution/query services. The execution service coordinates the domain, repository port, and provider port; the query service only reads through the repository port. The JPA adapter implements persistence and the RestClient adapter implements provider communication. PostgreSQL supplies durable transaction records, exact decimal storage, and indexed queries. Flyway owns versioned schema migrations. The provider remains responsible for account balances and locking.
 
+The HTTP adapter is organized by responsibility:
+
+```text
+api/
+  controller/  TransactionController
+  request/     CreateTransactionRequest, TransactionQueryParser
+  response/    TransactionResponse, TransactionPageResponse
+  error/       ApiExceptionHandler, InvalidRequestException
+  filter/      CorrelationIdFilter
+```
+
+Controller integration tests mirror the `api.controller` package. Request/response mapping stays with the corresponding types, and `TransactionQueryParser` handles query parameter conversion and validation.
+
 Application services use `@Service` and constructor injection. `ApplicationConfiguration` supplies only the Clock and UUID supplier needed by the execution service. `JpaTransactionRepository` uses `@Repository` for component discovery and persistence exception translation. The repository port stays an unannotated interface, and domain models/ports remain independent of Spring and JPA.
 
 ## AI usage

@@ -1,16 +1,17 @@
-package com.spin.transactions.api;
+package com.spin.transactions.api.request;
 
+import com.spin.transactions.api.error.InvalidRequestException;
 import com.spin.transactions.application.port.TransactionQuery;
 import com.spin.transactions.domain.TransactionStatus;
 import com.spin.transactions.domain.TransactionType;
 import org.springframework.util.MultiValueMap;
 
-final class TransactionQueryRequest {
+public final class TransactionQueryParser {
 
-	private TransactionQueryRequest() {
+	private TransactionQueryParser() {
 	}
 
-	static TransactionQuery parse(MultiValueMap<String, String> parameters) {
+	public static TransactionQuery parse(MultiValueMap<String, String> parameters) {
 		var accountId = singleValue(parameters, "accountId");
 		if (accountId != null && (accountId.isBlank() || accountId.length() > 128)) {
 			throw new InvalidRequestException("accountId", "accountId must be nonblank and at most 128 characters.");

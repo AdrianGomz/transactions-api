@@ -1,5 +1,9 @@
-package com.spin.transactions.api;
+package com.spin.transactions.api.controller;
 
+import com.spin.transactions.api.request.CreateTransactionRequest;
+import com.spin.transactions.api.request.TransactionQueryParser;
+import com.spin.transactions.api.response.TransactionPageResponse;
+import com.spin.transactions.api.response.TransactionResponse;
 import com.spin.transactions.application.ExecuteTransactionService;
 import com.spin.transactions.application.QueryTransactionsService;
 import jakarta.validation.Valid;
@@ -33,7 +37,7 @@ public class TransactionController {
 
 	@GetMapping(value = "/transactions", produces = MediaType.APPLICATION_JSON_VALUE)
 	public TransactionPageResponse findAll(@RequestParam MultiValueMap<String, String> parameters) {
-		return TransactionPageResponse.fromDomain(queryService.findAll(TransactionQueryRequest.parse(parameters)));
+		return TransactionPageResponse.fromDomain(queryService.findAll(TransactionQueryParser.parse(parameters)));
 	}
 
 }

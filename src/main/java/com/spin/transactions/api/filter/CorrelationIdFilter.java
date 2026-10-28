@@ -1,4 +1,4 @@
-package com.spin.transactions.api;
+package com.spin.transactions.api.filter;
 
 import java.io.IOException;
 import java.util.UUID;
@@ -14,7 +14,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component
 public class CorrelationIdFilter extends OncePerRequestFilter {
 
-	static final String ATTRIBUTE = CorrelationIdFilter.class.getName() + ".correlationId";
+	public static final String ATTRIBUTE = CorrelationIdFilter.class.getName() + ".correlationId";
 
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)

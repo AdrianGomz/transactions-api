@@ -54,7 +54,11 @@ GET /transactions
 Suggested layout under `com.spin.transactions`:
 
 ```text
-api/                         controllers, request/response records, error handler
+api/controller/              REST endpoints
+api/request/                 request records and query parser
+api/response/                response records and mapping
+api/error/                   HTTP exception handling
+api/filter/                  correlation ID filter
 application/                 execution and query services
 application/port/            repository and provider interfaces
 domain/                      transaction model, statuses, business rules

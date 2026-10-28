@@ -1,4 +1,4 @@
-package com.spin.transactions.api;
+package com.spin.transactions.api.response;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -14,7 +14,7 @@ public record TransactionResponse(UUID id, String accountId, TransactionType typ
 		String currency, String description, TransactionStatus status, String providerTransactionId,
 		BigDecimal balanceAfter, RejectionResponse rejection, Instant createdAt) {
 
-	static TransactionResponse fromDomain(Transaction transaction) {
+	public static TransactionResponse fromDomain(Transaction transaction) {
 		var details = transaction.details();
 		var rejection = transaction.rejection() == null ? null
 				: new RejectionResponse(transaction.rejection().name(), transaction.rejection().message());

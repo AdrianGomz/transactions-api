@@ -1,8 +1,9 @@
-package com.spin.transactions.api;
+package com.spin.transactions.api.request;
 
 import java.math.BigDecimal;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.spin.transactions.api.error.InvalidRequestException;
 import com.spin.transactions.domain.TransactionDetails;
 import com.spin.transactions.domain.TransactionType;
 import jakarta.validation.constraints.NotBlank;
@@ -17,7 +18,7 @@ public record CreateTransactionRequest(
 		@NotNull String currency,
 		@Size(max = 500) String description) {
 
-	TransactionDetails toDomain() {
+	public TransactionDetails toDomain() {
 		// Technical resource bound, independent of the absence of a CREDIT business cap.
 		if ((long) amount.precision() - amount.scale() > 1000) {
 			throw new InvalidRequestException("amount", "Amount exceeds the supported size of 1000 integer digits.");

@@ -1,8 +1,9 @@
-package com.spin.transactions.api;
+package com.spin.transactions.api.error;
 
 import java.net.URI;
 import java.util.List;
 
+import com.spin.transactions.api.filter.CorrelationIdFilter;
 import com.spin.transactions.application.TransactionExecutionException;
 import com.spin.transactions.application.TransactionQueryException;
 import com.spin.transactions.domain.BusinessRuleViolationException;

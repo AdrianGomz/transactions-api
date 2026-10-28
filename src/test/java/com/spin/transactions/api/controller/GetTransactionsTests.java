@@ -1,4 +1,4 @@
-package com.spin.transactions.api;
+package com.spin.transactions.api.controller;
 
 import java.math.BigDecimal;
 import java.net.URI;
