@@ -1,6 +1,6 @@
 # Transaction Execution API — implementation plan
 
-Status: Steps 1–8 are complete. Both endpoints, Docker packaging, health probes, and a repeatable smoke script are implemented. The provider port is wired directly to the REST adapter. Console logging covers execution outcomes/failures and optional DEBUG diagnostics; custom monitoring instrumentation remains outside the requested challenge scope. A clean build passed all 260 tests. The Docker smoke check passed with only health Actuator endpoints exposed before the logging additions. See [README.md](README.md) for commands and design details, [docs/verification.md](docs/verification.md) for evidence/limits, [docs/openapi.yaml](docs/openapi.yaml) for the contract, and [docs/api-decisions.md](docs/api-decisions.md) for assumptions. Next: step 9, final code/documentation review and repository handoff.
+Status: Steps 1–8 are complete. Both endpoints, Docker packaging, health probes, and a repeatable smoke script are implemented. The provider port is wired directly to the REST adapter. Console logging covers execution outcomes/failures and optional DEBUG diagnostics; custom monitoring instrumentation remains outside the requested challenge scope. A clean build passed all 266 tests. The Docker smoke check passed with only health Actuator endpoints exposed before the logging additions. See [README.md](README.md) for commands and design details, [docs/verification.md](docs/verification.md) for evidence/limits, [docs/openapi.yaml](docs/openapi.yaml) for the contract, and [docs/api-decisions.md](docs/api-decisions.md) for assumptions. Next: step 9, final code/documentation review and repository handoff.
 
 Working agreement: announce the intended work before each implementation step, complete and verify that step, then summarize the result for review before moving to the next step.
 
@@ -100,11 +100,11 @@ Proposed response behavior:
 | Malformed JSON, missing fields, invalid enums/query parameters | 400 | Descriptive problem response |
 | Valid JSON that violates an amount/currency policy | 422 | Descriptive problem response; no provider call |
 | Provider returns a valid approval and result is persisted | 201 | Transaction with `EXECUTED`, provider ID, balance, and timestamps |
-| Provider returns a valid contract-defined rejection and result is persisted | 201 | Transaction with `REJECTED` and rejection details |
+| Provider returns HTTP 400 rejection and result is persisted | 201 | Transaction with `REJECTED` and rejection details |
 | Uncertain provider outcome, including timeouts, decoding errors, or transport failures | 502 | PROVIDER_ERROR with local transaction ID; stored `UNKNOWN` if possible |
 | Database unavailable | 503 | Problem response; distinguish initial-save failure from final-save failure internally |
 
-Returning 201 for a provider rejection means a transaction record was created; `status` communicates the financial result. Document this explicitly. A valid provider rejection body is authoritative under the supplied mock contract, including when delivered with a 5xx status. An arbitrary 5xx without that valid body does not prove rejection.
+Returning 201 for a provider HTTP 400 rejection means a transaction record was created; `status` communicates the financial result. Provider HTTP 400 is assumed to contain the documented rejection body. All other 4xx/5xx responses are uncertain provider errors regardless of their body.
 
 Use a consistent `application/problem+json` error shape with an application error code, field errors when applicable, request ID, and local transaction ID when one exists. Do not return raw upstream errors or stack traces. Provider rejection code/message can be stored and exposed through a controlled mapping.
 
@@ -165,7 +165,7 @@ Write tests with each feature rather than leaving them until the final day.
 - Domain unit tests: null/zero/negative amounts; 1.00 rejected; 1.01 accepted; DEBIT 10000.00 accepted and 10000.01 rejected; CREDIT above 10000 accepted; invalid currency/type; fractional cents.
 - Application tests: invalid requests never call the provider; initial save failure prevents dispatch; approval/rejection mapping; ambiguous outcome handling; final-save failure does not produce a false success; exactly one provider invocation per attempt.
 - Controller tests: JSON serialization, required fields, consistent problem details, HTTP status mapping, query validation.
-- Provider HTTP tests: exact method/path/body; approval and exact balances; structured 4xx/5xx rejection; unstructured 5xx; delays; JSON decoding failures; no automatic retries. Provider response fields are trusted; there are no custom shape, size, or content-type checks.
+- Provider HTTP tests: exact method/path/body; approval and exact balances; HTTP 400 rejection; other 4xx/5xx remain uncertain even with rejection-shaped bodies; delays; JSON decoding failures; no automatic retries. Provider response fields are trusted; there are no custom shape, size, or content-type checks.
 - PostgreSQL integration tests: migrations, decimal precision including large credits, persistence and filtering, ordering, page boundaries, nullable provider fields.
 - End-to-end integration tests: submit through the real controller, call WireMock over HTTP, persist in a Testcontainers database, and retrieve through GET.
 - Final acceptance: fresh checkout instructions work; Docker Compose becomes healthy; curl examples demonstrate approval, rejection, validation failure, and querying; Maven verification passes.

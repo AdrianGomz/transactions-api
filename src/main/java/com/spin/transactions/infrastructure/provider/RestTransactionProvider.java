@@ -43,7 +43,7 @@ public final class RestTransactionProvider implements TransactionProvider {
 	private ProviderResult readResult(ClientHttpResponse response) throws IOException {
 		int status = response.getStatusCode().value();
 		log.debug("Provider response received: httpStatus={}", status);
-		if (status != 200 && (status < 400 || status > 599)) {
+		if (status != 200 && status != 400) {
 			return uncertain();
 		}
 		return mapResult(status, mapper.readValue(response.getBody(), ProviderResponse.class));
@@ -53,7 +53,7 @@ public final class RestTransactionProvider implements TransactionProvider {
 		if (httpStatus == 200 && "APPROVED".equals(response.status())) {
 			return readApproval(response);
 		}
-		if (httpStatus >= 400 && httpStatus <= 599 && "REJECTED".equals(response.status())) {
+		if (httpStatus == 400) {
 			return readRejection(response);
 		}
 		return uncertain();

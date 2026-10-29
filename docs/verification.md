@@ -4,9 +4,9 @@ Verified locally on October 28, 2026. All provider calls used WireMock fixtures;
 
 ## Automated regression suite
 
-`./mvnw --batch-mode --no-transfer-progress clean verify` passed **260 tests**, with zero failures, errors, or skipped tests, after unifying uncertain provider failures under PROVIDER_ERROR. The host used JDK 27 while compiling with Java release 21. Coverage includes domain rules, concurrent persistence updates, provider HTTP faults, POST/GET integration, and storage failures. An isolated-schema upgrade test applies V1, inserts a legacy timeout record, applies V2, verifies conversion to PROVIDER_ERROR, and confirms the old code is no longer accepted. Log-output assertions and request-filter tests are omitted; the existing HTTP tests continue to verify the request ID header and error-response field as part of the API contract.
+`./mvnw --batch-mode --no-transfer-progress clean verify` passed **266 tests**, with zero failures, errors, or skipped tests, after restricting provider rejection mapping to HTTP 400. The host used JDK 27 while compiling with Java release 21. Coverage includes domain rules, concurrent persistence updates, provider HTTP faults, POST/GET integration, and storage failures. An isolated-schema upgrade test applies V1, inserts a legacy timeout record, applies V2, verifies conversion to PROVIDER_ERROR, and confirms the old code is no longer accepted. Log-output assertions and request-filter tests are omitted; the existing HTTP tests continue to verify the request ID header and error-response field as part of the API contract.
 
-The 28 provider tests cover exact decimals, normal approval/rejection mappings, timeout and transport failures, no retries/redirects, and direct decoding of large responses or responses without a JSON content-type header. Tests for manual field-shape, duplicate-key, and trailing-document validation were removed to match the trusted provider-contract assumption.
+The 34 provider tests cover exact decimals, HTTP 400 rejection, other 4xx/5xx outcomes remaining uncertain even with rejection-shaped bodies, timeout and transport failures, no retries/redirects, and direct decoding of large responses or responses without a JSON content-type header. Tests for manual field-shape, duplicate-key, and trailing-document validation were removed to match the trusted provider-contract assumption.
 
 Compose configuration rendering confirmed that `APP_LOG_LEVEL=DEBUG` reaches the app container.
 
@@ -20,7 +20,7 @@ After the monitoring cleanup, before the console logging additions, the rebuilt 
 
 - Application health, liveness, and readiness returned UP.
 - Credits/debits returned 201 and persisted EXECUTED with the expected provider balances.
-- Insufficient funds and a contract-defined upstream 503 rejection returned 201 and persisted REJECTED.
+- Rejection persistence was checked against the fixtures configured at that time. The current rule accepts only provider HTTP 400 as rejection; provider HTTP 503 now returns 502/PROVIDER_ERROR and persists UNKNOWN regardless of its body.
 - Provider timeout, unstructured error, and malformed response persisted UNKNOWN. This earlier container run used a separate timeout response; the current API returns 502/PROVIDER_ERROR for all uncertain provider failures.
 - Every created record was retrieved through GET with the expected outcome.
 - Business-rule/query violations returned 422/400.

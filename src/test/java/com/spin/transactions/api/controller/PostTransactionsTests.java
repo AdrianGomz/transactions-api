@@ -117,8 +117,8 @@ class PostTransactionsTests {
 	}
 
 	@ParameterizedTest
-	@CsvSource({"acc-insufficient-funds, INSUFFICIENT_FUNDS", "acc-provider-rejected, PROVIDER_REJECTED"})
-	void returns201ForPersistedProviderRejectionIncludingUpstream5xx(String accountId, String reason) throws Exception {
+	@CsvSource({"acc-insufficient-funds, INSUFFICIENT_FUNDS"})
+	void returns201ForPersistedProviderHttp400Rejection(String accountId, String reason) throws Exception {
 		var response = sendPost(VALID.replace("acc-123456", accountId).replace("CREDIT", "DEBIT"));
 
 		assertThat(response.statusCode()).isEqualTo(201);
@@ -134,7 +134,8 @@ class PostTransactionsTests {
 	}
 
 	@ParameterizedTest
-	@CsvSource({"acc-timeout, 502, PROVIDER_ERROR", "acc-provider-error, 502, PROVIDER_ERROR", "acc-malformed, 502, PROVIDER_ERROR"})
+	@CsvSource({"acc-timeout, 502, PROVIDER_ERROR", "acc-provider-error, 502, PROVIDER_ERROR",
+			"acc-malformed, 502, PROVIDER_ERROR", "acc-provider-rejected, 502, PROVIDER_ERROR"})
 	void persistsUnknownBeforeReportingAmbiguousExecution(String accountId, int status, String code) throws Exception {
 		var response = sendPost(VALID.replace("acc-123456", accountId).replace("CREDIT", "DEBIT"));
 

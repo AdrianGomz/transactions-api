@@ -111,7 +111,7 @@ python3 scripts/smoke.py
 python3 scripts/smoke.py --base-url http://127.0.0.1:8082
 ```
 
-Each run creates seven mock transaction records and retrieves them through GET: two approvals, two rejections, and three uncertain outcomes (timeout, unstructured provider error, malformed response). It also checks validation and health/probes. The script makes no automatic POST retries. It expects default fixtures and a provider response timeout shorter than the five-second delayed fixture; it is an acceptance check, not a load test.
+Each run creates seven mock transaction records and retrieves them through GET: two approvals, one HTTP 400 rejection, and four uncertain outcomes (timeout, unstructured provider error, malformed response, and an HTTP 503 with a rejection-shaped body). It also checks validation and health/probes. The script makes no automatic POST retries. It expects default fixtures and a provider response timeout shorter than the five-second delayed fixture; it is an acceptance check, not a load test.
 
 The Docker health check uses readiness. Readiness includes the database; liveness only includes application availability. A stopped database therefore makes readiness return HTTP 503/DOWN while liveness remains HTTP 200/UP. Provider execution is never called from probes. This behavior and database recovery were verified in a separate Compose project with fresh data, leaving the development database available.
 
@@ -143,10 +143,10 @@ This returns HTTP 200, `APPROVED`, and a fixed balance of 5500.00.
 | --- | --- | --- | --- | --- |
 | `acc-123456` | CREDIT | 1500.00 | MXN | 200 APPROVED, balance 5500.00 |
 | `acc-123456` | DEBIT | 1500.00 | MXN | 200 APPROVED, balance 2500.00 |
-| `acc-insufficient-funds` | DEBIT | 1500.00 | MXN | 422 REJECTED, INSUFFICIENT_FUNDS |
+| `acc-insufficient-funds` | DEBIT | 1500.00 | MXN | 400 REJECTED, INSUFFICIENT_FUNDS |
 | `acc-timeout` | DEBIT | 1500.00 | MXN | 200 APPROVED after 5 seconds; exceeds the adapter's default response timeout |
 | `acc-provider-error` | DEBIT | 1500.00 | MXN | 500 HTML error; adapter returns Uncertain(PROVIDER_ERROR) |
-| `acc-provider-rejected` | DEBIT | 1500.00 | MXN | 503 with a valid REJECTED body; adapter returns Rejected(PROVIDER_REJECTED) |
+| `acc-provider-rejected` | DEBIT | 1500.00 | MXN | 503 with a REJECTED body; adapter returns Uncertain(PROVIDER_ERROR) |
 | `acc-malformed` | DEBIT | 1500.00 | MXN | 200 with malformed JSON; adapter returns Uncertain(PROVIDER_ERROR) |
 
 ```bash
@@ -177,7 +177,7 @@ To demonstrate a provider rejection, use `accountId: acc-insufficient-funds` and
 | Amount/currency policy violation | 422 | No record and no provider call |
 | Unsupported request Content-Type | 415 | No record and no provider call |
 | Valid provider approval | 201 | EXECUTED, including returned balance |
-| Valid provider rejection, including contract-defined rejection on upstream 5xx | 201 | REJECTED with safe reason/message |
+| Provider HTTP 400 rejection | 201 | REJECTED with safe reason/message |
 | Uncertain provider outcome, including timeout, decoding, or transport errors | 502 | UNKNOWN if final persistence succeeds |
 | Initial persistence failure | 503 | Execution is not attempted |
 | Final persistence failure | 503 | Previously committed PENDING may remain; execution may have occurred |
@@ -225,9 +225,9 @@ Explicitly empty, blank, malformed, out-of-range, or repeated supported paramete
 
 Automatic retries and redirects are disabled, including responses with Retry-After. This prevents the client from replaying the financial request. The adapter is still not an exactly-once mechanism: two explicit invocations are two execution attempts. Transport failures, including connection refusal, are classified conservatively as uncertain.
 
-The adapter assumes the provider returns the documented JSON shape and deserializes it directly into a response record. `ProviderRequest` and `ProviderResponse` are package-private records in separate files alongside the adapter. HTTP 200 with APPROVED maps to approval; HTTP 4xx/5xx with REJECTED maps to rejection. INSUFFICIENT_FUNDS maps to its domain reason; other rejection codes map to PROVIDER_REJECTED. Upstream message text is ignored and never exposed or logged by the adapter.
+The adapter assumes the provider returns the documented JSON shape for HTTP 200 approval and HTTP 400 rejection responses, and deserializes those directly into a response record. `ProviderRequest` and `ProviderResponse` are package-private records in separate files alongside the adapter. HTTP 200 with APPROVED maps to approval; HTTP 400 maps to rejection. Every other 4xx/5xx maps to Uncertain(PROVIDER_ERROR) without decoding its body, even if that body says REJECTED. INSUFFICIENT_FUNDS maps to its domain reason; other HTTP 400 rejection codes map to PROVIDER_REJECTED. Upstream message text is ignored and never exposed or logged by the adapter.
 
-All provider failures without a clear rejection yield Uncertain(PROVIDER_ERROR), including timeouts, transport errors, decoding failures, and unexpected HTTP status/outcome combinations. The service persists UNKNOWN when possible and returns HTTP 502 with code PROVIDER_ERROR. HTTP timeout settings still bound the call, but there is no separate timeout classification. The adapter has no custom response-size limit, content-type validation, field-shape checks, or custom duplicate-key/trailing-document checks; normal Jackson parser defaults apply. Balances deserialize directly into BigDecimal to preserve precision. Missing or incorrectly typed fields are outside the assumed provider contract. Public API request validation and its parser limits remain independent of provider response decoding.
+All provider failures not mapped to an HTTP 400 rejection yield Uncertain(PROVIDER_ERROR), including timeouts, transport errors, decoding failures, and unexpected HTTP status/outcome combinations. The service persists UNKNOWN when possible and returns HTTP 502 with code PROVIDER_ERROR. HTTP timeout settings still bound the call, but there is no separate timeout classification. The adapter has no custom response-size limit, content-type validation, field-shape checks, or custom duplicate-key/trailing-document checks; normal Jackson parser defaults apply. Balances deserialize directly into BigDecimal to preserve precision. Missing or incorrectly typed fields are outside the assumed provider contract. Public API request validation and its parser limits remain independent of provider response decoding.
 
 The adapter does not probe the financial execution endpoint at startup or from health checks. Integration tests invoke the actual configured HTTP client against local WireMock servers on random ports, including all seven checked-in fixtures, and verify one execution request per attempt. No real provider has been called. The application service maps these results to persisted EXECUTED, REJECTED, or UNKNOWN records and the documented POST responses.
 

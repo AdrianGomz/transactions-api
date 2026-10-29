@@ -41,7 +41,7 @@ def main():
         ("acc-123456", "CREDIT", 201, "EXECUTED", Decimal("5500.00")),
         ("acc-123456", "DEBIT", 201, "EXECUTED", Decimal("2500.00")),
         ("acc-insufficient-funds", "DEBIT", 201, "REJECTED", None),
-        ("acc-provider-rejected", "DEBIT", 201, "REJECTED", None),
+        ("acc-provider-rejected", "DEBIT", 502, "UNKNOWN", None),
         ("acc-timeout", "DEBIT", 502, "UNKNOWN", None),
         ("acc-provider-error", "DEBIT", 502, "UNKNOWN", None),
         ("acc-malformed", "DEBIT", 502, "UNKNOWN", None),

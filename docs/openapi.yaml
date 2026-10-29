@@ -34,8 +34,9 @@ paths:
         then save the provider outcome before returning HTTP 201.
 
         HTTP 201 means a transaction record was created. Inspect status to
-        distinguish EXECUTED from REJECTED. A valid provider rejection body is
-        authoritative under the supplied contract, including on provider 5xx.
+        distinguish EXECUTED from REJECTED. Provider HTTP 400 is assumed to
+        contain the rejection response. Every other provider 4xx/5xx yields
+        502/PROVIDER_ERROR and UNKNOWN, even if its body says REJECTED.
 
         A timeout or unexpected provider response produces a problem response,
         and UNKNOWN is persisted if possible. If final persistence fails, return

@@ -100,18 +100,26 @@ class RestTransactionProviderTests {
 				.withRequestBody(containing("999999999999999999999999999.99")));
 	}
 
-	@ParameterizedTest
-	@ValueSource(ints = {400, 403, 422, 500, 503})
-	void mapsContractRejectionsEvenOnServerErrorsWithoutRetrying(int status) {
-		wireMock.stubFor(post(urlEqualTo(PATH)).willReturn(aResponse().withStatus(status)
+	@Test
+	void mapsHttp400ToRejectionWithoutRetrying() {
+		wireMock.stubFor(post(urlEqualTo(PATH)).willReturn(aResponse().withStatus(400)
 				.withHeader("Content-Type", "application/json").withHeader("Retry-After", "0").withBody(REJECTION)));
 
 		assertThat(provider.execute(details())).isEqualTo(new ProviderResult.Rejected(RejectionReason.INSUFFICIENT_FUNDS));
 	}
 
+	@ParameterizedTest
+	@ValueSource(ints = {401, 403, 404, 409, 422, 429, 499, 500, 503, 599})
+	void otherErrorStatusesAreUncertainEvenWithARejectionBody(int status) {
+		wireMock.stubFor(post(urlEqualTo(PATH)).willReturn(aResponse().withStatus(status)
+				.withHeader("Content-Type", "application/json").withHeader("Retry-After", "0").withBody(REJECTION)));
+
+		assertProviderError();
+	}
+
 	@Test
 	void mapsUnknownRejectionCodesToASafePublicReason() {
-		wireMock.stubFor(post(urlEqualTo(PATH)).willReturn(aResponse().withStatus(422)
+		wireMock.stubFor(post(urlEqualTo(PATH)).willReturn(aResponse().withStatus(400)
 				.withHeader("Content-Type", "application/json").withBody("""
 						{"status":"REJECTED","code":"ACCOUNT_LOCKED","message":"Sensitive internal provider details"}
 						""")));
@@ -187,7 +195,7 @@ class RestTransactionProviderTests {
 			"execute-insufficient-funds.json, acc-insufficient-funds, DEBIT, INSUFFICIENT_FUNDS",
 			"execute-timeout.json, acc-timeout, DEBIT, ERROR",
 			"execute-provider-error.json, acc-provider-error, DEBIT, ERROR",
-			"execute-provider-rejected.json, acc-provider-rejected, DEBIT, REJECTED",
+			"execute-provider-rejected.json, acc-provider-rejected, DEBIT, ERROR",
 			"execute-malformed-response.json, acc-malformed, DEBIT, ERROR"
 	})
 	void executesAgainstTheCheckedInLocalFixtures(String file, String accountId,
@@ -204,7 +212,6 @@ class RestTransactionProviderTests {
 						.isEqualByComparingTo(type == TransactionType.CREDIT ? "5500.00" : "2500.00");
 			}
 			case "INSUFFICIENT_FUNDS" -> assertThat(result).isEqualTo(new ProviderResult.Rejected(RejectionReason.INSUFFICIENT_FUNDS));
-			case "REJECTED" -> assertThat(result).isEqualTo(new ProviderResult.Rejected(RejectionReason.PROVIDER_REJECTED));
 			case "ERROR" -> assertThat(result).isEqualTo(new ProviderResult.Uncertain(ExecutionFailure.PROVIDER_ERROR));
 			default -> throw new AssertionError("Unknown fixture result: " + expected);
 		}

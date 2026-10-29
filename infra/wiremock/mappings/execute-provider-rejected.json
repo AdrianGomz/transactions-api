@@ -1,5 +1,5 @@
 {
-  "name": "Return a contract-defined rejection on HTTP 503",
+  "name": "Return HTTP 503 with a rejection body; outcome is uncertain",
   "request": {
     "method": "POST",
     "urlPath": "/provider/v1/execute",
