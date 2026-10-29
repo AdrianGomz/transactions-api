@@ -4,12 +4,12 @@ import java.math.BigDecimal;
 import java.net.ServerSocket;
 import java.time.Duration;
 
+import com.spin.transactions.ProviderTestConfiguration;
 import com.spin.transactions.application.port.ProviderResult;
 import com.spin.transactions.application.port.TransactionProvider;
 import com.spin.transactions.domain.ExecutionFailure;
 import com.spin.transactions.domain.TransactionDetails;
 import com.spin.transactions.domain.TransactionType;
-import com.spin.transactions.infrastructure.provider.RestTransactionProvider;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ProviderClientConfigurationTests {
 
 	private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
-			.withUserConfiguration(ProviderClientConfiguration.class, RestTransactionProvider.class);
+			.withUserConfiguration(ProviderTestConfiguration.class);
 
 	@Test
 	void bindsTimeoutAndPoolOverrides() {

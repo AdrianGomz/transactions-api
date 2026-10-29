@@ -23,6 +23,7 @@ The source of truth for public request and response shapes is [openapi.yaml](ope
 | Currency and type | Case-sensitive; do not silently normalize client mistakes. |
 | Validation errors | Structural input errors return 400. Amount/currency policy violations return 422. Structural validation runs first. Invalid requests create no transaction record. |
 | Provider rejection | Assume provider HTTP 400 contains the documented rejection body. Return 201 with `status: REJECTED`: the record was created successfully even though execution was rejected. Clients must inspect status. |
+| Provider approval | Assume provider HTTP 200 is approved. Map its transaction ID, balance, and execution time directly; ignore the response body status field. |
 | Other upstream 4xx/5xx | Always uncertain, regardless of the body. Return 502/PROVIDER_ERROR and persist UNKNOWN when possible. |
 | Provider response validation | Assume the documented JSON shape. Deserialize directly without custom length, content-type, field-shape, duplicate-key, or trailing-document checks. Keep HTTP outcome mapping, exact decimals, timeouts, and decoding/transport error handling. |
 | Optional response values | Always include `description`, `providerTransactionId`, `balanceAfter`, and `rejection`; use null when absent. |

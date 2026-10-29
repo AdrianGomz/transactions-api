@@ -9,9 +9,9 @@ import java.time.Instant;
 import com.github.tomakehurst.wiremock.http.Fault;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import com.github.tomakehurst.wiremock.stubbing.StubMapping;
+import com.spin.transactions.ProviderTestConfiguration;
 import com.spin.transactions.application.port.ProviderResult;
 import com.spin.transactions.application.port.TransactionProvider;
-import com.spin.transactions.configuration.ProviderClientConfiguration;
 import com.spin.transactions.domain.ExecutionFailure;
 import com.spin.transactions.domain.RejectionReason;
 import com.spin.transactions.domain.TransactionDetails;
@@ -33,7 +33,7 @@ import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMoc
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
-@SpringJUnitConfig({ProviderClientConfiguration.class, RestTransactionProvider.class})
+@SpringJUnitConfig(ProviderTestConfiguration.class)
 @TestPropertySource(properties = {
 		"provider.connect-timeout=250ms",
 		"provider.response-timeout=250ms",
@@ -106,6 +106,24 @@ class RestTransactionProviderTests {
 				.withHeader("Content-Type", "application/json").withHeader("Retry-After", "0").withBody(REJECTION)));
 
 		assertThat(provider.execute(details())).isEqualTo(new ProviderResult.Rejected(RejectionReason.INSUFFICIENT_FUNDS));
+	}
+
+	@Test
+	void deserializesProviderExecutionTimeWithAnOffsetAndNanosecondPrecision() {
+		wireMock.stubFor(post(urlEqualTo(PATH)).willReturn(okJson(APPROVAL.replace(
+				"2025-03-15T10:30:00Z", "2025-03-15T04:30:00.123456789-06:00"))));
+
+		assertThat(provider.execute(details())).isEqualTo(new ProviderResult.Approved(
+				"txn-789", new BigDecimal("5500.00"), Instant.parse("2025-03-15T10:30:00.123456789Z")));
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"not-a-date", "2025-03-15T10:30:00"})
+	void executionTimesThatCannotIdentifyAnInstantAreUncertain(String executedAt) {
+		wireMock.stubFor(post(urlEqualTo(PATH)).willReturn(okJson(APPROVAL.replace(
+				"2025-03-15T10:30:00Z", executedAt))));
+
+		assertProviderError();
 	}
 
 	@ParameterizedTest

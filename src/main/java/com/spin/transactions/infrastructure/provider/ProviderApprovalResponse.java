@@ -1,9 +1,10 @@
 package com.spin.transactions.infrastructure.provider;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-record ProviderResponse(String transactionId, String status, BigDecimal balance, String executedAt, String code) {
+record ProviderApprovalResponse(String transactionId, BigDecimal balance, Instant executedAt) {
 }
