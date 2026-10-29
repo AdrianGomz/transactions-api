@@ -93,7 +93,7 @@ class TransactionTests {
 		var transaction = switch (status) {
 			case EXECUTED -> pending().recordApproval("txn-789", BigDecimal.TEN, CREATED_AT, RECORDED_AT);
 			case REJECTED -> pending().recordRejection(RejectionReason.INSUFFICIENT_FUNDS, RECORDED_AT);
-			case UNKNOWN -> pending().recordUncertainOutcome(ExecutionFailure.PROVIDER_TIMEOUT, RECORDED_AT);
+			case UNKNOWN -> pending().recordUncertainOutcome(ExecutionFailure.PROVIDER_ERROR, RECORDED_AT);
 			case PENDING -> throw new AssertionError("Test requires a recorded outcome.");
 		};
 
@@ -133,7 +133,7 @@ class TransactionTests {
 				null, null, CREATED_AT, CREATED_AT));
 		assertThatIllegalArgumentException().isThrownBy(() -> new Transaction(ID, DETAILS,
 				TransactionStatus.REJECTED, null, null, null,
-				RejectionReason.INSUFFICIENT_FUNDS, ExecutionFailure.PROVIDER_TIMEOUT, CREATED_AT, RECORDED_AT));
+				RejectionReason.INSUFFICIENT_FUNDS, ExecutionFailure.PROVIDER_ERROR, CREATED_AT, RECORDED_AT));
 	}
 
 	@Test

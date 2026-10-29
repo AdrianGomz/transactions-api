@@ -64,7 +64,7 @@ If application port 8080 is occupied, use:
 
 Then check `http://localhost:8082/actuator/health`.
 
-Flyway runs at startup and applies `V1__create_transactions.sql` to create the transaction table, constraints, and indexes. Existing development databases from the infrastructure step are migrated on the next application startup. Hibernate uses `ddl-auto=validate`, never `update` or `create`. Do not edit an applied migration; add a new version for subsequent schema changes.
+Flyway runs at startup and applies `V1__create_transactions.sql` to create the transaction table, constraints, and indexes. `V2__simplify_provider_failures.sql` converts previously stored timeout failure codes to the generic `PROVIDER_ERROR` and restricts new failure codes to that value. Existing development databases are migrated on the next application startup. Hibernate uses `ddl-auto=validate`, never `update` or `create`. Do not edit an applied migration; add a new version for subsequent schema changes.
 
 Stop a Maven-run app with Ctrl+C. Stop the Compose stack with:
 
@@ -123,7 +123,7 @@ docker compose logs -f app
 
 The default application level is `INFO`. Saved EXECUTED/REJECTED outcomes produce one INFO summary with the local transaction ID and status. Provider uncertainty produces a WARN entry; storage/unexpected failures produce ERROR entries with safe reason codes, whether execution was attempted, and exception class names where available. The exception handler owns the main failure entry, avoiding repeated error logs in each layer. Backward clock adjustments also produce a WARN entry.
 
-Set `APP_LOG_LEVEL=DEBUG` in `.env` and restart the host application or recreate the app container with `docker compose up -d --wait app` to include persistence stages/conflicts, provider HTTP status and response-validation reasons, and query page/result counts. Successful queries and validation failures stay at DEBUG to limit routine log volume. The setting changes only the application logger namespace; framework logging retains its normal defaults. The request ID filter only establishes the request attribute, response header, and MDC context; it does not emit logs. The console pattern supplies the request ID, so log messages do not repeat it. Transaction-related messages include the local transaction ID where available.
+Set `APP_LOG_LEVEL=DEBUG` in `.env` and restart the host application or recreate the app container with `docker compose up -d --wait app` to include persistence stages/conflicts, provider HTTP status and decoding diagnostics, and query page/result counts. Successful queries and validation failures stay at DEBUG to limit routine log volume. The setting changes only the application logger namespace; framework logging retains its normal defaults. The request ID filter only establishes the request attribute, response header, and MDC context; it does not emit logs. The console pattern supplies the request ID, so log messages do not repeat it. Transaction-related messages include the local transaction ID where available.
 
 Application log statements omit request/response bodies, account IDs, amounts, balances, descriptions, and raw exception messages. They use local transaction IDs, request IDs, controlled codes, and exception class names for diagnosis. No file appender, external log collector, metrics instrumentation, or monitoring agent is configured.
 
@@ -178,11 +178,9 @@ To demonstrate a provider rejection, use `accountId: acc-insufficient-funds` and
 | Unsupported request Content-Type | 415 | No record and no provider call |
 | Valid provider approval | 201 | EXECUTED, including returned balance |
 | Valid provider rejection, including contract-defined rejection on upstream 5xx | 201 | REJECTED with safe reason/message |
-| Provider timeout | 504 | UNKNOWN if final persistence succeeds |
-| Unexpected provider response or transport error | 502 | UNKNOWN if final persistence succeeds |
+| Uncertain provider outcome, including timeout, decoding, or transport errors | 502 | UNKNOWN if final persistence succeeds |
 | Initial persistence failure | 503 | Execution is not attempted |
 | Final persistence failure | 503 | Previously committed PENDING may remain; execution may have occurred |
-| Unexpected provider-client exception | 500 | UNKNOWN is attempted before reporting the failure |
 
 All errors use `application/problem+json`, with `type`, `title`, `status`, `detail`, `instance`, `code`, and `requestId`. Field violations include `fieldErrors`; execution failures include the local `transactionId`. Each response also includes an `X-Request-ID` header. Application failure logs use request ID, transaction ID, reason, and cause class without exposing raw provider/database messages in the response.
 
@@ -227,9 +225,9 @@ Explicitly empty, blank, malformed, out-of-range, or repeated supported paramete
 
 Automatic retries and redirects are disabled, including responses with Retry-After. This prevents the client from replaying the financial request. The adapter is still not an exactly-once mechanism: two explicit invocations are two execution attempts. Transport failures, including connection refusal, are classified conservatively as uncertain.
 
-Only HTTP 200 with a complete APPROVED body yields approval. Only HTTP 4xx/5xx with a complete REJECTED body yields rejection, matching the supplied provider contract. INSUFFICIENT_FUNDS maps to its domain reason; other rejection codes map to PROVIDER_REJECTED. Upstream message text is validated for presence but never exposed or logged by the adapter.
+The adapter assumes the provider returns the documented JSON shape and deserializes it directly into a response record. `ProviderRequest` and `ProviderResponse` are package-private records in separate files alongside the adapter. HTTP 200 with APPROVED maps to approval; HTTP 4xx/5xx with REJECTED maps to rejection. INSUFFICIENT_FUNDS maps to its domain reason; other rejection codes map to PROVIDER_REJECTED. Upstream message text is ignored and never exposed or logged by the adapter.
 
-Timeouts yield Uncertain(PROVIDER_TIMEOUT). Unexpected HTTP status/body combinations, transport errors, missing fields, malformed JSON/content types, duplicate JSON keys, trailing JSON documents, and responses exceeding the 64 KiB parsing limit yield Uncertain(PROVIDER_ERROR). Balances must be JSON numbers and are decoded directly as BigDecimal to preserve precision. Blank provider IDs, quoted balances, and invalid/missing execution timestamps are not accepted as confirmed approvals.
+All provider failures without a clear rejection yield Uncertain(PROVIDER_ERROR), including timeouts, transport errors, decoding failures, and unexpected HTTP status/outcome combinations. The service persists UNKNOWN when possible and returns HTTP 502 with code PROVIDER_ERROR. HTTP timeout settings still bound the call, but there is no separate timeout classification. The adapter has no custom response-size limit, content-type validation, field-shape checks, or custom duplicate-key/trailing-document checks; normal Jackson parser defaults apply. Balances deserialize directly into BigDecimal to preserve precision. Missing or incorrectly typed fields are outside the assumed provider contract. Public API request validation and its parser limits remain independent of provider response decoding.
 
 The adapter does not probe the financial execution endpoint at startup or from health checks. Integration tests invoke the actual configured HTTP client against local WireMock servers on random ports, including all seven checked-in fixtures, and verify one execution request per attempt. No real provider has been called. The application service maps these results to persisted EXECUTED, REJECTED, or UNKNOWN records and the documented POST responses.
 

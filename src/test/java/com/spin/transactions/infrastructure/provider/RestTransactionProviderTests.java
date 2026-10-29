@@ -120,37 +120,6 @@ class RestTransactionProviderTests {
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = {
-			"not-json", "", "null", "[]", "{}",
-			"{\"status\":\"APPROVED\",\"balance\":10,\"executedAt\":\"2025-03-15T10:30:00Z\"}",
-			"{\"transactionId\":\" \",\"status\":\"APPROVED\",\"balance\":10,\"executedAt\":\"2025-03-15T10:30:00Z\"}",
-			"{\"transactionId\":\"txn\",\"status\":\"APPROVED\",\"executedAt\":\"2025-03-15T10:30:00Z\"}",
-			"{\"transactionId\":\"txn\",\"status\":\"APPROVED\",\"balance\":null,\"executedAt\":\"2025-03-15T10:30:00Z\"}",
-			"{\"transactionId\":\"txn\",\"status\":\"APPROVED\",\"balance\":\"10.00\",\"executedAt\":\"2025-03-15T10:30:00Z\"}",
-			"{\"transactionId\":\"txn\",\"status\":\"APPROVED\",\"balance\":10}",
-			"{\"transactionId\":\"txn\",\"status\":\"APPROVED\",\"balance\":10,\"executedAt\":\"not-a-date\"}",
-			"{\"transactionId\":\"txn\",\"status\":\"APPROVED\",\"balance\":10,\"executedAt\":\"2025-03-15T10:30:00\"}",
-			"{\"transactionId\":123,\"status\":\"APPROVED\",\"balance\":10,\"executedAt\":\"2025-03-15T10:30:00Z\"}",
-			"{\"status\":\"REJECTED\",\"code\":\"INSUFFICIENT_FUNDS\",\"message\":\"Rejected on HTTP 200\"}"
-	})
-	void malformedOrIncompleteSuccessIsUncertain(String body) {
-		wireMock.stubFor(post(urlEqualTo(PATH)).willReturn(okJson(body)));
-
-		assertProviderError();
-	}
-
-	@ParameterizedTest
-	@ValueSource(strings = {"{\"status\":\"REJECTED\"}",
-			"{\"status\":\"REJECTED\",\"code\":\"\",\"message\":\"reason\"}",
-			"{\"status\":\"REJECTED\",\"code\":\"OTHER\",\"message\":null}"})
-	void incompleteRejectionIsUncertain(String body) {
-		wireMock.stubFor(post(urlEqualTo(PATH)).willReturn(aResponse().withStatus(422)
-				.withHeader("Content-Type", "application/json").withBody(body)));
-
-		assertProviderError();
-	}
-
-	@ParameterizedTest
 	@ValueSource(ints = {201, 202, 500, 503})
 	void approvalRequiresExactlyHttp200(int status) {
 		wireMock.stubFor(post(urlEqualTo(PATH)).willReturn(aResponse().withStatus(status)
@@ -161,48 +130,38 @@ class RestTransactionProviderTests {
 
 	@ParameterizedTest
 	@ValueSource(strings = {"text/html", "text/plain", "not a media type"})
-	void rejectsUnexpectedContentTypes(String contentType) {
-		wireMock.stubFor(post(urlEqualTo(PATH)).willReturn(aResponse().withStatus(500)
-				.withHeader("Content-Type", contentType).withBody("<html>upstream unavailable</html>")));
+	void mapsValidJsonWithoutCheckingContentType(String contentType) {
+		wireMock.stubFor(post(urlEqualTo(PATH)).willReturn(aResponse().withStatus(200)
+				.withHeader("Content-Type", contentType).withBody(APPROVAL)));
 
-		assertProviderError();
+		assertThat(provider.execute(details())).isEqualTo(new ProviderResult.Approved(
+				"txn-789", new BigDecimal("5500.00"), Instant.parse("2025-03-15T10:30:00Z")));
 	}
 
 	@Test
-	void rejectsMissingContentType() {
+	void mapsValidJsonWithoutAContentType() {
 		wireMock.stubFor(post(urlEqualTo(PATH)).willReturn(aResponse().withStatus(200).withBody(APPROVAL)));
-		assertProviderError();
+		assertThat(provider.execute(details())).isEqualTo(new ProviderResult.Approved(
+				"txn-789", new BigDecimal("5500.00"), Instant.parse("2025-03-15T10:30:00Z")));
 	}
 
 	@Test
-	void rejectsOversizedResponseBeforeParsing() {
+	void mapsLargeValidResponses() {
 		wireMock.stubFor(post(urlEqualTo(PATH)).willReturn(okJson(APPROVAL + " ".repeat(65536))));
-		assertProviderError();
-	}
-
-	@Test
-	void rejectsDuplicateFieldsAndTrailingJson() {
-		wireMock.stubFor(post(urlEqualTo(PATH)).willReturn(okJson(APPROVAL.replace(
-				"\"balance\":5500.00", "\"balance\":5500.00,\"balance\":1.00"))));
-		assertProviderError();
-	}
-
-	@Test
-	void rejectsTrailingJsonDocument() {
-		wireMock.stubFor(post(urlEqualTo(PATH)).willReturn(okJson(APPROVAL + "{}")));
-		assertProviderError();
+		assertThat(provider.execute(details())).isEqualTo(new ProviderResult.Approved(
+				"txn-789", new BigDecimal("5500.00"), Instant.parse("2025-03-15T10:30:00Z")));
 	}
 
 	@Test
 	void responseTimeoutIsUncertainAndDoesNotRetry() {
 		wireMock.stubFor(post(urlEqualTo(PATH)).willReturn(okJson(APPROVAL).withFixedDelay(1000)));
-		assertThat(provider.execute(details())).isEqualTo(new ProviderResult.Uncertain(ExecutionFailure.PROVIDER_TIMEOUT));
+		assertThat(provider.execute(details())).isEqualTo(new ProviderResult.Uncertain(ExecutionFailure.PROVIDER_ERROR));
 	}
 
 	@Test
 	void stalledResponseBodyAlsoTimesOut() {
 		wireMock.stubFor(post(urlEqualTo(PATH)).willReturn(okJson(APPROVAL).withChunkedDribbleDelay(2, 1500)));
-		assertThat(provider.execute(details())).isEqualTo(new ProviderResult.Uncertain(ExecutionFailure.PROVIDER_TIMEOUT));
+		assertThat(provider.execute(details())).isEqualTo(new ProviderResult.Uncertain(ExecutionFailure.PROVIDER_ERROR));
 	}
 
 	@Test
@@ -226,7 +185,7 @@ class RestTransactionProviderTests {
 			"execute-credit-approved.json, acc-123456, CREDIT, APPROVED",
 			"execute-debit-approved.json, acc-123456, DEBIT, APPROVED",
 			"execute-insufficient-funds.json, acc-insufficient-funds, DEBIT, INSUFFICIENT_FUNDS",
-			"execute-timeout.json, acc-timeout, DEBIT, TIMEOUT",
+			"execute-timeout.json, acc-timeout, DEBIT, ERROR",
 			"execute-provider-error.json, acc-provider-error, DEBIT, ERROR",
 			"execute-provider-rejected.json, acc-provider-rejected, DEBIT, REJECTED",
 			"execute-malformed-response.json, acc-malformed, DEBIT, ERROR"
@@ -246,7 +205,6 @@ class RestTransactionProviderTests {
 			}
 			case "INSUFFICIENT_FUNDS" -> assertThat(result).isEqualTo(new ProviderResult.Rejected(RejectionReason.INSUFFICIENT_FUNDS));
 			case "REJECTED" -> assertThat(result).isEqualTo(new ProviderResult.Rejected(RejectionReason.PROVIDER_REJECTED));
-			case "TIMEOUT" -> assertThat(result).isEqualTo(new ProviderResult.Uncertain(ExecutionFailure.PROVIDER_TIMEOUT));
 			case "ERROR" -> assertThat(result).isEqualTo(new ProviderResult.Uncertain(ExecutionFailure.PROVIDER_ERROR));
 			default -> throw new AssertionError("Unknown fixture result: " + expected);
 		}

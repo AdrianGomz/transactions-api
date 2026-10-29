@@ -140,7 +140,7 @@ class ExecuteTransactionServiceTests {
 
 		var exception = catchThrowableOfType(TransactionExecutionException.class, () -> service.execute(DETAILS));
 
-		assertThat(exception.reason()).isEqualTo(TransactionExecutionException.Reason.INTERNAL_ERROR);
+		assertThat(exception.reason()).isEqualTo(TransactionExecutionException.Reason.PROVIDER_ERROR);
 		var capture = ArgumentCaptor.forClass(Transaction.class);
 		verify(repository).saveOutcome(capture.capture());
 		assertThat(capture.getValue().status()).isEqualTo(TransactionStatus.UNKNOWN);

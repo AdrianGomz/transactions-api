@@ -76,7 +76,7 @@ class GetTransactionsTests {
 		repository.saveOutcome(second.recordRejection(RejectionReason.INSUFFICIENT_FUNDS, CREATED_AT.plusSeconds(2)));
 		repository.insertPending(pending(3, "acc-a", TransactionType.CREDIT, CREATED_AT.plusSeconds(1)));
 		var fourth = repository.insertPending(pending(4, "acc-b", TransactionType.DEBIT, CREATED_AT.plusSeconds(2)));
-		repository.saveOutcome(fourth.recordUncertainOutcome(ExecutionFailure.PROVIDER_TIMEOUT, CREATED_AT.plusSeconds(3)));
+		repository.saveOutcome(fourth.recordUncertainOutcome(ExecutionFailure.PROVIDER_ERROR, CREATED_AT.plusSeconds(3)));
 	}
 
 	@AfterEach

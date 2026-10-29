@@ -162,7 +162,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
         '502':
-          description: Unexpected provider response or transport failure. Execution outcome is uncertain; do not automatically retry.
+          description: Provider outcome could not be confirmed, including timeouts and transport failures. Do not automatically retry.
           content:
             application/problem+json:
               schema:
@@ -178,21 +178,6 @@ paths:
                 transactionId: 2b05f5ec-1d5d-4ade-9697-52f3b6a782dd
         '503':
           $ref: '#/components/responses/StorageUnavailable'
-        '504':
-          description: Provider timeout. Execution may already have occurred; do not automatically retry.
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ExecutionProblem'
-              example:
-                type: about:blank
-                title: Gateway Timeout
-                status: 504
-                detail: The provider did not respond in time. Execution may have occurred. Do not automatically resubmit.
-                instance: /transactions
-                code: PROVIDER_TIMEOUT
-                requestId: 3182e484-d22b-49ef-85dc-c32ed064db92
-                transactionId: 2b05f5ec-1d5d-4ade-9697-52f3b6a782dd
     get:
       tags: [Transactions]
       operationId: listTransactions
@@ -456,7 +441,7 @@ components:
           description: Request path; requestId identifies the individual request.
         code:
           type: string
-          enum: [INVALID_REQUEST, BUSINESS_RULE_VIOLATION, UNSUPPORTED_MEDIA_TYPE, PROVIDER_ERROR, PROVIDER_TIMEOUT, STORAGE_UNAVAILABLE, INTERNAL_ERROR]
+          enum: [INVALID_REQUEST, BUSINESS_RULE_VIOLATION, UNSUPPORTED_MEDIA_TYPE, PROVIDER_ERROR, STORAGE_UNAVAILABLE, INTERNAL_ERROR]
         requestId:
           type: string
           format: uuid

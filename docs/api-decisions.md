@@ -23,7 +23,8 @@ The source of truth for public request and response shapes is [openapi.yaml](ope
 | Currency and type | Case-sensitive; do not silently normalize client mistakes. |
 | Validation errors | Structural input errors return 400. Amount/currency policy violations return 422. Structural validation runs first. Invalid requests create no transaction record. |
 | Provider rejection | Return 201 with `status: REJECTED`: the record was created successfully even though execution was rejected. Clients must inspect status. |
-| Upstream 5xx | A valid `REJECTED` body follows the supplied provider contract. An unstructured error or invalid body is ambiguous and returns 502. |
+| Upstream 5xx | A valid `REJECTED` body follows the supplied provider contract. An unstructured error or undecodable body is ambiguous and returns 502. |
+| Provider response validation | Assume the documented JSON shape. Deserialize directly without custom length, content-type, field-shape, duplicate-key, or trailing-document checks. Keep HTTP outcome mapping, exact decimals, timeouts, and decoding/transport error handling. |
 | Optional response values | Always include `description`, `providerTransactionId`, `balanceAfter`, and `rejection`; use null when absent. |
 | Rejection detail | Expose safe application-owned messages. Recognize `INSUFFICIENT_FUNDS`; map other valid rejection codes to `PROVIDER_REJECTED`. |
 | Timestamps | `createdAt` is the local attempt creation time, serialized in UTC. Keep provider execution time in persistence when supplied. |
@@ -49,7 +50,7 @@ validate -> commit PENDING -> call provider -> commit EXECUTED / REJECTED / UNKN
 
 Database transactions are short and do not include the HTTP call. Initial-save failure prevents dispatch. Final-save failure produces 503 rather than reporting success that was not persisted. If saving UNKNOWN itself fails, return 503; the older PENDING record may remain. A transaction ID in an error identifies an attempt, not a guarantee that a record was saved.
 
-Provider timeouts return 504; other ambiguous provider/transport failures return 502. Neither means the account definitely remained unchanged. POST is not idempotent, and every submission is a new attempt. Disable automatic POST retries. PENDING and UNKNOWN do not imply a background worker will retry or reconcile them. The provider contract supplies no idempotency key or lookup API, so exactly-once execution and automatic recovery are outside the current guarantee.
+All provider failures without a clear rejection, including timeouts, return 502 with code PROVIDER_ERROR and persist UNKNOWN when possible. This does not mean the account definitely remained unchanged. POST is not idempotent, and every submission is a new attempt. Disable automatic POST retries. PENDING and UNKNOWN do not imply a background worker will retry or reconcile them. The provider contract supplies no idempotency key or lookup API, so exactly-once execution and automatic recovery are outside the current guarantee.
 
 ## Examples to use when implementing
 

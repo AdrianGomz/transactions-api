@@ -47,7 +47,7 @@ public final class ExecuteTransactionService {
 		}
 		catch (RuntimeException exception) {
 			saveOutcome(pending.recordUncertainOutcome(ExecutionFailure.PROVIDER_ERROR, recordedAt(pending)));
-			throw new TransactionExecutionException(pending.id(), INTERNAL_ERROR, true, exception);
+			throw new TransactionExecutionException(pending.id(), PROVIDER_ERROR, true, exception);
 		}
 
 		Instant recordedAt = recordedAt(pending);
@@ -58,10 +58,8 @@ public final class ExecuteTransactionService {
 			case ProviderResult.Uncertain uncertain -> pending.recordUncertainOutcome(uncertain.failure(), recordedAt);
 		};
 		var saved = saveOutcome(outcome);
-		if (result instanceof ProviderResult.Uncertain uncertain) {
-			throw new TransactionExecutionException(saved.id(),
-					uncertain.failure() == ExecutionFailure.PROVIDER_TIMEOUT ? PROVIDER_TIMEOUT : PROVIDER_ERROR,
-					true, null);
+		if (result instanceof ProviderResult.Uncertain) {
+			throw new TransactionExecutionException(saved.id(), PROVIDER_ERROR, true, null);
 		}
 		log.info("Transaction execution completed: transactionId={}, status={}, rejection={}",
 				saved.id(), saved.status(), saved.rejection() == null ? "none" : saved.rejection());

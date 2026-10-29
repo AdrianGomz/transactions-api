@@ -5,7 +5,7 @@ import java.util.UUID;
 public final class TransactionExecutionException extends RuntimeException {
 
 	public enum Reason {
-		STORAGE_UNAVAILABLE, PROVIDER_TIMEOUT, PROVIDER_ERROR, INTERNAL_ERROR
+		STORAGE_UNAVAILABLE, PROVIDER_ERROR
 	}
 
 	private final UUID transactionId;

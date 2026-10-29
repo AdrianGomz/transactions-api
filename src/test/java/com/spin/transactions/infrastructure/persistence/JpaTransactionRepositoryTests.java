@@ -20,6 +20,7 @@ import com.spin.transactions.domain.Transaction;
 import com.spin.transactions.domain.TransactionDetails;
 import com.spin.transactions.domain.TransactionStatus;
 import com.spin.transactions.domain.TransactionType;
+import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -65,6 +66,30 @@ class JpaTransactionRepositoryTests {
 				""", String.class)).containsExactlyInAnyOrder("amount", "balance_after");
 		assertThat(jdbc.queryForList("SELECT indexname FROM pg_indexes WHERE tablename = 'transactions'", String.class))
 				.contains("transactions_created_id_idx", "transactions_account_created_id_idx");
+	}
+
+	@Test
+	void migratesStoredTimeoutFailuresToGenericProviderErrors() {
+		var schema = "provider_failure_" + UUID.randomUUID().toString().replace("-", "");
+		var id = UUID.randomUUID();
+		try {
+			Flyway.configure().dataSource(jdbc.getDataSource()).schemas(schema).defaultSchema(schema)
+					.target("1").load().migrate();
+			jdbc.update("INSERT INTO " + schema + ".transactions"
+					+ " (id, account_id, type, amount, currency, status, failure_code, created_at, updated_at)"
+					+ " VALUES (?, 'acc-migration', 'CREDIT', 2, 'MXN', 'UNKNOWN', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+					id, "PROVIDER_TIMEOUT");
+
+			Flyway.configure().dataSource(jdbc.getDataSource()).schemas(schema).defaultSchema(schema).load().migrate();
+
+			assertThat(jdbc.queryForObject("SELECT failure_code FROM " + schema + ".transactions WHERE id = ?",
+					String.class, id)).isEqualTo("PROVIDER_ERROR");
+			assertThatExceptionOfType(DataIntegrityViolationException.class).isThrownBy(() ->
+					jdbc.update("UPDATE " + schema + ".transactions SET failure_code = ? WHERE id = ?", "PROVIDER_TIMEOUT", id));
+		}
+		finally {
+			jdbc.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
+		}
 	}
 
 	@Test
@@ -290,7 +315,7 @@ class JpaTransactionRepositoryTests {
 			case PENDING -> pending;
 			case EXECUTED -> pending.recordApproval("txn-" + pending.id(), new BigDecimal("5500.00"), recordedAt, recordedAt);
 			case REJECTED -> pending.recordRejection(RejectionReason.INSUFFICIENT_FUNDS, recordedAt);
-			case UNKNOWN -> pending.recordUncertainOutcome(ExecutionFailure.PROVIDER_TIMEOUT, recordedAt);
+			case UNKNOWN -> pending.recordUncertainOutcome(ExecutionFailure.PROVIDER_ERROR, recordedAt);
 		};
 	}
 

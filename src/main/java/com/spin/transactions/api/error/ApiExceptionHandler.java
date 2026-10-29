@@ -56,22 +56,17 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 	ResponseEntity<Object> executionFailure(TransactionExecutionException exception, HttpServletRequest request) {
 		int status = switch (exception.reason()) {
 			case STORAGE_UNAVAILABLE -> 503;
-			case PROVIDER_TIMEOUT -> 504;
 			case PROVIDER_ERROR -> 502;
-			case INTERNAL_ERROR -> 500;
 		};
 		String detail = switch (exception.reason()) {
 			case STORAGE_UNAVAILABLE -> exception.executionAttempted()
 					? "The execution result could not be saved. Execution may have occurred. Do not automatically resubmit."
 					: "Transaction storage is temporarily unavailable. Execution was not attempted.";
-			case PROVIDER_TIMEOUT -> "The provider did not respond in time. Execution may have occurred. Do not automatically resubmit.";
 			case PROVIDER_ERROR -> "The provider outcome could not be confirmed. Do not automatically resubmit.";
-			case INTERNAL_ERROR -> "An unexpected execution error occurred. Execution may have occurred. Do not automatically resubmit.";
 		};
 		var problem = problem(status, exception.reason().name(), detail, request);
 		problem.setProperty("transactionId", exception.transactionId());
-		if (exception.reason() == TransactionExecutionException.Reason.PROVIDER_TIMEOUT
-				|| exception.reason() == TransactionExecutionException.Reason.PROVIDER_ERROR) {
+		if (exception.reason() == TransactionExecutionException.Reason.PROVIDER_ERROR) {
 			log.warn("Transaction execution uncertain: transactionId={}, reason={}, executionAttempted={}",
 					exception.transactionId(), exception.reason(), exception.executionAttempted());
 		}
