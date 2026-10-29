@@ -169,7 +169,6 @@ class PostTransactionsTests {
 				VALID.replace("\"amount\":1500.00", "\"amount\":null"),
 				VALID.replace("\"amount\":1500.00", "\"amount\":\"1500.00\""),
 				VALID.replace("\"amount\":1500.00", "\"amount\":true"),
-				VALID.replace("1500.00", "1e1001"),
 				VALID.replace("\"currency\":\"MXN\"", "\"currency\":null"),
 				VALID.replace("\"currency\":\"MXN\"", "\"currency\":123"),
 				VALID.replace("Transfer received", "d".repeat(501)),
@@ -188,7 +187,6 @@ class PostTransactionsTests {
 
 	static Stream<Arguments> resourceLimitRequests() {
 		return Stream.of(
-				VALID.replace("1500.00", "9".repeat(1001)),
 				VALID.replace("}", ",\"padding\":" + "[".repeat(40) + "0" + "]".repeat(40) + "}"),
 				VALID.replace("}", ",\"padding\":[" + "0,".repeat(40000) + "0]}"))
 				.map(Arguments::of);
@@ -249,9 +247,9 @@ class PostTransactionsTests {
 		verifyOneExecution();
 	}
 
-	@Test
-	void preservesLargeCreditAmountsThroughJsonHttpAndDatabase() throws Exception {
-		String amount = "999999999999999999999999999.99";
+	@ParameterizedTest
+	@MethodSource("largeCreditAmounts")
+	void preservesLargeCreditAmountsThroughJsonHttpAndDatabase(String amount) throws Exception {
 		wireMock.stubFor(post(urlEqualTo("/provider/v1/execute")).willReturn(okJson("""
 				{"transactionId":"txn-large","status":"APPROVED","balance":999999999999999999999999999.123456,
 				"executedAt":"2025-03-15T10:30:00Z"}
@@ -266,6 +264,10 @@ class PostTransactionsTests {
 		var stored = repository.findById(UUID.fromString(body.get("id").asString())).orElseThrow();
 		assertThat(stored.details().amount()).isEqualByComparingTo(amount);
 		verifyOneExecution();
+	}
+
+	static Stream<String> largeCreditAmounts() {
+		return Stream.of("999999999999999999999999999.99", "9".repeat(1001), "1e1001");
 	}
 
 	@ParameterizedTest

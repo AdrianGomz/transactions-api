@@ -295,8 +295,10 @@ components:
         blank accountId, and exceeded text lengths return 400.
         Amount and supported-currency policy violations return 422.
         Technical parser limits return 400: parsed document length 64 KiB,
-        nesting depth 32, strings 8192 characters, numeric tokens 1024 characters,
-        and amount magnitude at most 1000 integer digits including exponent expansion.
+        nesting depth 32, strings 8192 characters, and numeric tokens 1024 characters.
+        There is no separate application limit on integer digits after exponent
+        expansion; CREDIT amount 1e1001 is accepted. PostgreSQL numeric
+        representation limits still apply.
       properties:
         accountId:
           $ref: '#/components/schemas/AccountId'

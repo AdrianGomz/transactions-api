@@ -36,7 +36,7 @@ The source of truth for public request and response shapes is [openapi.yaml](ope
 | Detail endpoint | Neither the required scope nor this contract includes GET by ID. Do not invent a Location URL that cannot be retrieved. Locate a record through the account-filtered collection. |
 | Authentication | Not specified; local demo has no authentication. Public deployment requires an access model. |
 
-Technical parser limits are now implemented: parsed document length 64 KiB, nesting depth 32, string length 8192, numeric token length 1024, and amount magnitude at most 1000 integer digits including exponent expansion. Exceeding a limit returns 400 before execution. These are resource limits, not a new CREDIT business cap. Fractional-cent violations return 422. Unknown JSON properties remain accepted within these limits. Responses include a server-generated X-Request-ID header as well as the request ID in problem bodies.
+Technical parser limits are now implemented: parsed document length 64 KiB, nesting depth 32, string length 8192, and numeric token length 1024. Exceeding a parser limit returns 400 before execution. These are resource limits, not a new CREDIT business cap. Fractional-cent violations return 422. Unknown JSON properties remain accepted within these limits. Responses include a server-generated X-Request-ID header as well as the request ID in problem bodies.
 
 ## States and side effects
 
