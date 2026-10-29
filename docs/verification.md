@@ -6,13 +6,17 @@ Verified locally on October 28, 2026. All provider calls used WireMock fixtures;
 
 `./mvnw --batch-mode --no-transfer-progress clean verify` passed **268 tests**, with zero failures, errors, or skipped tests, after consolidating the database schema into one initial migration. The host used JDK 27 while compiling with Java release 21. Coverage includes domain rules, concurrent persistence updates, provider HTTP faults, POST/GET integration, and storage failures. The repository schema test verifies that Flyway history contains exactly V1; the consolidated schema accepts only PROVIDER_ERROR for UNKNOWN records. The obsolete upgrade-specific test was removed. Log-output assertions and request-filter tests are omitted; the existing HTTP tests continue to verify the request ID header and error-response field as part of the API contract.
 
-The 37 provider tests cover exact decimals, timestamp offsets/nanosecond precision, HTTP 400 rejection, other 4xx/5xx outcomes remaining uncertain even with rejection-shaped bodies, timeout and transport failures, no retries/redirects, and direct decoding of large responses or responses without a JSON content-type header. Tests for manual field-shape, duplicate-key, and trailing-document validation were removed to match the trusted provider-contract assumption.
+The provider tests cover exact decimals, timestamp offsets/nanosecond precision, HTTP 400 rejection, other 4xx/5xx outcomes remaining uncertain, timeout and transport failures, no retries/redirects, and direct decoding of large responses or responses without a JSON content-type header. Tests for manual field-shape, duplicate-key, and trailing-document validation were removed to match the trusted provider-contract assumption.
 
 MapStruct generated the mapper as a Spring component, and the integration tests exercised it through the real provider adapter. The Java 21 Docker build stage also compiled and packaged the application successfully. JAR inspection confirmed that the generated mapper class is included and MapStruct/Lombok compiler libraries are excluded.
 
 After removing the approval/rejection helpers, body-status check, and redundant provider outcome logs, a clean focused run passed all **99 provider, configuration, and POST tests**. HTTP 200/400 branches now call the mapper directly, and the approval DTO ignores the provider's body status field.
 
+After removing the separate 1,000-integer-digit amount limit, a focused run of `TransactionDetailsTests`, `TransactionTests`, `ExecuteTransactionServiceTests`, and `PostTransactionsTests` passed all **111 tests**. POST regression cases verified that a 1,001-digit CREDIT amount and `1e1001` pass through HTTP and PostgreSQL without losing numeric precision. Existing parser-limit tests still reject oversized numeric tokens, excessive nesting, and oversized documents.
+
 Compose configuration rendering confirmed that `APP_LOG_LEVEL=DEBUG` reaches the app container.
+
+After removing the unsupported provider HTTP 503 rejection scenario, a focused run of `RestTransactionProviderTests`, `PostTransactionsTests`, and `GetTransactionsTests` passed all **126 tests**. Provider error-status tests use generic error bodies. The smoke script now covers six transaction attempts. The Postman collection contains **25 requests**, including **12 GET query examples**; its JSON, request URLs/bodies, and test-script syntax were checked. The running local WireMock was reloaded and its admin endpoint confirmed six mappings with the removed scenario absent.
 
 ## Container acceptance
 
@@ -24,12 +28,12 @@ After the monitoring cleanup, before the console logging additions, the rebuilt 
 
 - Application health, liveness, and readiness returned UP.
 - Credits/debits returned 201 and persisted EXECUTED with the expected provider balances.
-- Rejection persistence was checked against the fixtures configured at that time. The current rule accepts only provider HTTP 400 as rejection; provider HTTP 503 now returns 502/PROVIDER_ERROR and persists UNKNOWN regardless of its body.
+- Rejection persistence was checked against the fixtures configured at that time. The current rule accepts only provider HTTP 400 as rejection; other provider error statuses return 502/PROVIDER_ERROR and persist UNKNOWN.
 - Provider timeout, unstructured error, and malformed response persisted UNKNOWN. This earlier container run used a separate timeout response; the current API returns 502/PROVIDER_ERROR for all uncertain provider failures.
 - Every created record was retrieved through GET with the expected outcome.
 - Business-rule/query violations returned 422/400.
 
-The smoke script inserted seven mock records in the isolated database.
+The earlier smoke run inserted seven mock records in the isolated database. The current script creates six records per run.
 
 Separate HTTP checks confirmed that non-health Actuator endpoints were not exposed (404). The provider port is now wired directly to the REST adapter.
 

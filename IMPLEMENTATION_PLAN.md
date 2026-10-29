@@ -165,7 +165,7 @@ Write tests with each feature rather than leaving them until the final day.
 - Domain unit tests: null/zero/negative amounts; 1.00 rejected; 1.01 accepted; DEBIT 10000.00 accepted and 10000.01 rejected; CREDIT above 10000 accepted; invalid currency/type; fractional cents.
 - Application tests: invalid requests never call the provider; initial save failure prevents dispatch; approval/rejection mapping; ambiguous outcome handling; final-save failure does not produce a false success; exactly one provider invocation per attempt.
 - Controller tests: JSON serialization, required fields, consistent problem details, HTTP status mapping, query validation.
-- Provider HTTP tests: exact method/path/body; approval and exact balances; HTTP 400 rejection; other 4xx/5xx remain uncertain even with rejection-shaped bodies; delays; JSON decoding failures; no automatic retries. Provider response fields are trusted; there are no custom shape, size, or content-type checks.
+- Provider HTTP tests: exact method/path/body; approval and exact balances; HTTP 400 rejection; other 4xx/5xx remain uncertain; delays; JSON decoding failures; no automatic retries. Provider response fields are trusted; there are no custom shape, size, or content-type checks.
 - PostgreSQL integration tests: migrations, decimal precision including large credits, persistence and filtering, ordering, page boundaries, nullable provider fields.
 - End-to-end integration tests: submit through the real controller, call WireMock over HTTP, persist in a Testcontainers database, and retrieve through GET.
 - Final acceptance: fresh checkout instructions work; Docker Compose becomes healthy; curl examples demonstrate approval, rejection, validation failure, and querying; Maven verification passes.

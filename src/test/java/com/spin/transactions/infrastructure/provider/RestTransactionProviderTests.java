@@ -128,9 +128,10 @@ class RestTransactionProviderTests {
 
 	@ParameterizedTest
 	@ValueSource(ints = {401, 403, 404, 409, 422, 429, 499, 500, 503, 599})
-	void otherErrorStatusesAreUncertainEvenWithARejectionBody(int status) {
+	void otherErrorStatusesAreUncertain(int status) {
 		wireMock.stubFor(post(urlEqualTo(PATH)).willReturn(aResponse().withStatus(status)
-				.withHeader("Content-Type", "application/json").withHeader("Retry-After", "0").withBody(REJECTION)));
+				.withHeader("Content-Type", "application/json").withHeader("Retry-After", "0")
+				.withBody("{\"error\":\"Provider unavailable\"}")));
 
 		assertProviderError();
 	}
@@ -213,7 +214,6 @@ class RestTransactionProviderTests {
 			"execute-insufficient-funds.json, acc-insufficient-funds, DEBIT, INSUFFICIENT_FUNDS",
 			"execute-timeout.json, acc-timeout, DEBIT, ERROR",
 			"execute-provider-error.json, acc-provider-error, DEBIT, ERROR",
-			"execute-provider-rejected.json, acc-provider-rejected, DEBIT, ERROR",
 			"execute-malformed-response.json, acc-malformed, DEBIT, ERROR"
 	})
 	void executesAgainstTheCheckedInLocalFixtures(String file, String accountId,

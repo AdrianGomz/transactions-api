@@ -1,0 +1,1283 @@
+{
+  "info": {
+    "_postman_id": "f0078c8d-e5bc-4229-bf54-27ccc4aa1735",
+    "name": "Spin Transactions API - Local Tests",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Import this JSON file into Postman. Set the collection variable baseUrl (default http://localhost:8080). No authentication is required for the local app.\n\nThe authoritative API contract is docs/openapi.yaml; the transaction operations were generated from that spec and expanded here with the 25 request scenarios and checked-in WireMock fixtures from infra/wiremock/mappings. Keep this collection aligned when those files change. The health request checks the configured Actuator health endpoint.\n\nRequires the app, PostgreSQL, and default WireMock fixtures. A full collection run sends six transaction attempts. POST is not idempotent; each send creates a new attempt. The timeout scenario assumes the default 3-second provider timeout. Financial outcomes and provider responses here are simulated fixtures, not real account balances.\n\nFolders cover health, approvals/rejections, provider failures, validation, and queries. Each request has response assertions; valid error responses count as passing tests. No automatic retries or request chaining are configured."
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string",
+      "description": "Application origin, without a trailing slash. Use http://localhost:8082 if running on port 8082."
+    }
+  ],
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.test(\"Response has a UUID request ID\", () => {",
+          "    pm.expect(pm.response.headers.get(\"X-Request-ID\")).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);",
+          "});"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "01 - Application health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json, application/problem+json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/actuator/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "actuator",
+                "health"
+              ]
+            },
+            "description": "Expected: HTTP 200 and status UP. Requires a running app and reachable database."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Application is healthy\", () => { pm.expect(body.status).to.eql(\"UP\"); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Approvals and rejections",
+      "item": [
+        {
+          "name": "02 - Approved CREDIT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json, application/problem+json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ]
+            },
+            "description": "Expected: HTTP 201, EXECUTED, balanceAfter 5500. Uses the exact checked-in WireMock fixture. Creates a transaction attempt on every send.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountId\": \"acc-123456\",\n  \"type\": \"CREDIT\",\n  \"amount\": 1500.0,\n  \"currency\": \"MXN\",\n  \"description\": \"Credit test\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Executed transaction\", () => { pm.expect(body.status).to.eql(\"EXECUTED\"); });",
+                  "pm.test(\"Expected provider balance\", () => { pm.expect(body.balanceAfter).to.eql(5500); });",
+                  "pm.test(\"Transaction identifiers present\", () => { pm.expect(body.id).to.be.a(\"string\").and.not.empty; pm.expect(body.providerTransactionId).to.be.a(\"string\").and.not.empty; });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "03 - Approved DEBIT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json, application/problem+json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ]
+            },
+            "description": "Expected: HTTP 201, EXECUTED, balanceAfter 2500. Uses the exact checked-in WireMock fixture. Creates a transaction attempt on every send.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountId\": \"acc-123456\",\n  \"type\": \"DEBIT\",\n  \"amount\": 1500.0,\n  \"currency\": \"MXN\",\n  \"description\": \"Debit test\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Executed transaction\", () => { pm.expect(body.status).to.eql(\"EXECUTED\"); });",
+                  "pm.test(\"Expected provider balance\", () => { pm.expect(body.balanceAfter).to.eql(2500); });",
+                  "pm.test(\"Transaction identifiers present\", () => { pm.expect(body.id).to.be.a(\"string\").and.not.empty; pm.expect(body.providerTransactionId).to.be.a(\"string\").and.not.empty; });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "04 - Insufficient funds",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json, application/problem+json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ]
+            },
+            "description": "Expected: HTTP 201 with status REJECTED and rejection.code INSUFFICIENT_FUNDS. HTTP 201 means the record was created.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountId\": \"acc-insufficient-funds\",\n  \"type\": \"DEBIT\",\n  \"amount\": 1500.0,\n  \"currency\": \"MXN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Rejected transaction\", () => { pm.expect(body.status).to.eql(\"REJECTED\"); });",
+                  "pm.test(\"Insufficient funds\", () => { pm.expect(body.rejection.code).to.eql(\"INSUFFICIENT_FUNDS\"); });",
+                  "pm.test(\"No approval balance\", () => { pm.expect(body.balanceAfter).to.eql(null); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Provider failures",
+      "item": [
+        {
+          "name": "05 - Provider timeout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json, application/problem+json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ]
+            },
+            "description": "Expected: HTTP 502, code PROVIDER_ERROR; transaction stored as UNKNOWN if persistence succeeds. The provider fixture delays 5 seconds; requires the default 3-second provider response timeout. Query transactions with status=UNKNOWN to inspect it.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountId\": \"acc-timeout\",\n  \"type\": \"DEBIT\",\n  \"amount\": 1500.0,\n  \"currency\": \"MXN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 502\", () => pm.response.to.have.status(502));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Expected error code\", () => { pm.expect(body.code).to.eql(\"PROVIDER_ERROR\"); });",
+                  "pm.test(\"Problem status matches HTTP status\", () => { pm.expect(body.status).to.eql(pm.response.code); });",
+                  "pm.test(\"Request ID matches response header\", () => { pm.expect(body.requestId).to.eql(pm.response.headers.get(\"X-Request-ID\")); });",
+                  "pm.test(\"Transaction attempt identified\", () => { pm.expect(body.transactionId).to.be.a(\"string\").and.not.empty; });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "06 - Provider HTTP 500",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json, application/problem+json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ]
+            },
+            "description": "Expected: HTTP 502, code PROVIDER_ERROR; transaction stored as UNKNOWN if persistence succeeds. Provider returns an HTML error body. Query transactions with status=UNKNOWN to inspect it.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountId\": \"acc-provider-error\",\n  \"type\": \"DEBIT\",\n  \"amount\": 1500.0,\n  \"currency\": \"MXN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 502\", () => pm.response.to.have.status(502));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Expected error code\", () => { pm.expect(body.code).to.eql(\"PROVIDER_ERROR\"); });",
+                  "pm.test(\"Problem status matches HTTP status\", () => { pm.expect(body.status).to.eql(pm.response.code); });",
+                  "pm.test(\"Request ID matches response header\", () => { pm.expect(body.requestId).to.eql(pm.response.headers.get(\"X-Request-ID\")); });",
+                  "pm.test(\"Transaction attempt identified\", () => { pm.expect(body.transactionId).to.be.a(\"string\").and.not.empty; });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "07 - Malformed provider JSON",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json, application/problem+json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ]
+            },
+            "description": "Expected: HTTP 502, code PROVIDER_ERROR; transaction stored as UNKNOWN if persistence succeeds. Provider returns HTTP 200 with invalid JSON. Query transactions with status=UNKNOWN to inspect it.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountId\": \"acc-malformed\",\n  \"type\": \"DEBIT\",\n  \"amount\": 1500.0,\n  \"currency\": \"MXN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 502\", () => pm.response.to.have.status(502));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Expected error code\", () => { pm.expect(body.code).to.eql(\"PROVIDER_ERROR\"); });",
+                  "pm.test(\"Problem status matches HTTP status\", () => { pm.expect(body.status).to.eql(pm.response.code); });",
+                  "pm.test(\"Request ID matches response header\", () => { pm.expect(body.requestId).to.eql(pm.response.headers.get(\"X-Request-ID\")); });",
+                  "pm.test(\"Transaction attempt identified\", () => { pm.expect(body.transactionId).to.be.a(\"string\").and.not.empty; });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Request validation",
+      "item": [
+        {
+          "name": "08 - Missing required fields",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json, application/problem+json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ]
+            },
+            "description": "Expected: HTTP 400. Validation prevents provider execution and record creation.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Expected error code\", () => { pm.expect(body.code).to.eql(\"INVALID_REQUEST\"); });",
+                  "pm.test(\"Problem status matches HTTP status\", () => { pm.expect(body.status).to.eql(pm.response.code); });",
+                  "pm.test(\"Request ID matches response header\", () => { pm.expect(body.requestId).to.eql(pm.response.headers.get(\"X-Request-ID\")); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "09 - Quoted amount",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json, application/problem+json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ]
+            },
+            "description": "Expected: HTTP 400; amount must be a JSON number.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountId\": \"acc-123456\",\n  \"type\": \"CREDIT\",\n  \"amount\": \"1500.00\",\n  \"currency\": \"MXN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Expected error code\", () => { pm.expect(body.code).to.eql(\"INVALID_REQUEST\"); });",
+                  "pm.test(\"Problem status matches HTTP status\", () => { pm.expect(body.status).to.eql(pm.response.code); });",
+                  "pm.test(\"Request ID matches response header\", () => { pm.expect(body.requestId).to.eql(pm.response.headers.get(\"X-Request-ID\")); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "10 - Amount at excluded minimum",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json, application/problem+json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ]
+            },
+            "description": "Expected: HTTP 422; amount must be greater than 1.00.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountId\": \"acc-123456\",\n  \"type\": \"CREDIT\",\n  \"amount\": 1.0,\n  \"currency\": \"MXN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Expected error code\", () => { pm.expect(body.code).to.eql(\"BUSINESS_RULE_VIOLATION\"); });",
+                  "pm.test(\"Problem status matches HTTP status\", () => { pm.expect(body.status).to.eql(pm.response.code); });",
+                  "pm.test(\"Request ID matches response header\", () => { pm.expect(body.requestId).to.eql(pm.response.headers.get(\"X-Request-ID\")); });",
+                  "pm.test(\"Expected business violation\", () => { pm.expect(body.fieldErrors.map(error => error.code)).to.include(\"AMOUNT_TOO_SMALL\"); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "11 - Debit above maximum",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json, application/problem+json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ]
+            },
+            "description": "Expected: HTTP 422; DEBIT must not exceed 10000.00.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountId\": \"acc-123456\",\n  \"type\": \"DEBIT\",\n  \"amount\": 10000.01,\n  \"currency\": \"MXN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Expected error code\", () => { pm.expect(body.code).to.eql(\"BUSINESS_RULE_VIOLATION\"); });",
+                  "pm.test(\"Problem status matches HTTP status\", () => { pm.expect(body.status).to.eql(pm.response.code); });",
+                  "pm.test(\"Request ID matches response header\", () => { pm.expect(body.requestId).to.eql(pm.response.headers.get(\"X-Request-ID\")); });",
+                  "pm.test(\"Expected business violation\", () => { pm.expect(body.fieldErrors.map(error => error.code)).to.include(\"DEBIT_LIMIT_EXCEEDED\"); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "12 - Fractional cents",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json, application/problem+json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ]
+            },
+            "description": "Expected: HTTP 422; fractional cents are rejected without rounding.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountId\": \"acc-123456\",\n  \"type\": \"CREDIT\",\n  \"amount\": 1500.001,\n  \"currency\": \"MXN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Expected error code\", () => { pm.expect(body.code).to.eql(\"BUSINESS_RULE_VIOLATION\"); });",
+                  "pm.test(\"Problem status matches HTTP status\", () => { pm.expect(body.status).to.eql(pm.response.code); });",
+                  "pm.test(\"Request ID matches response header\", () => { pm.expect(body.requestId).to.eql(pm.response.headers.get(\"X-Request-ID\")); });",
+                  "pm.test(\"Expected business violation\", () => { pm.expect(body.fieldErrors.map(error => error.code)).to.include(\"INVALID_AMOUNT_PRECISION\"); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "13 - Unsupported currency",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json, application/problem+json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ]
+            },
+            "description": "Expected: HTTP 422; only MXN is supported.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountId\": \"acc-123456\",\n  \"type\": \"CREDIT\",\n  \"amount\": 1500.0,\n  \"currency\": \"USD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Expected error code\", () => { pm.expect(body.code).to.eql(\"BUSINESS_RULE_VIOLATION\"); });",
+                  "pm.test(\"Problem status matches HTTP status\", () => { pm.expect(body.status).to.eql(pm.response.code); });",
+                  "pm.test(\"Request ID matches response header\", () => { pm.expect(body.requestId).to.eql(pm.response.headers.get(\"X-Request-ID\")); });",
+                  "pm.test(\"Expected business violation\", () => { pm.expect(body.fieldErrors.map(error => error.code)).to.include(\"UNSUPPORTED_CURRENCY\"); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Query transactions",
+      "item": [
+        {
+          "name": "14 - List transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json, application/problem+json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ]
+            },
+            "description": "Expected: HTTP 200. Defaults: page=0, limit=20. Empty results are valid."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Paginated response\", () => { pm.expect(body.items).to.be.an(\"array\"); pm.expect(body.hasNext).to.be.a(\"boolean\"); });",
+                  "pm.test(\"Expected page and limit\", () => { pm.expect(body.page).to.eql(0); pm.expect(body.limit).to.eql(20); pm.expect(body.items.length).to.be.at.most(20); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "15 - Filter by account, status and type",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json, application/problem+json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions?accountId=acc-123456&status=EXECUTED&type=CREDIT&page=0&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "accountId",
+                  "value": "acc-123456"
+                },
+                {
+                  "key": "status",
+                  "value": "EXECUTED"
+                },
+                {
+                  "key": "type",
+                  "value": "CREDIT"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Expected: HTTP 200. Filters use exact case-sensitive matching and are combined with AND."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Paginated response\", () => { pm.expect(body.items).to.be.an(\"array\"); pm.expect(body.hasNext).to.be.a(\"boolean\"); });",
+                  "pm.test(\"Expected page and limit\", () => { pm.expect(body.page).to.eql(0); pm.expect(body.limit).to.eql(10); pm.expect(body.items.length).to.be.at.most(10); });",
+                  "pm.test(\"All rows match filters\", () => { body.items.forEach(item => { pm.expect(item.accountId).to.eql(\"acc-123456\"); pm.expect(item.status).to.eql(\"EXECUTED\"); pm.expect(item.type).to.eql(\"CREDIT\"); }); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "16 - List uncertain transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json, application/problem+json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions?status=UNKNOWN",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "UNKNOWN"
+                }
+              ]
+            },
+            "description": "Expected: HTTP 200. Run the provider-failure requests first to populate UNKNOWN examples."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Paginated response\", () => { pm.expect(body.items).to.be.an(\"array\"); pm.expect(body.hasNext).to.be.a(\"boolean\"); });",
+                  "pm.test(\"Expected page and limit\", () => { pm.expect(body.page).to.eql(0); pm.expect(body.limit).to.eql(20); pm.expect(body.items.length).to.be.at.most(20); });",
+                  "pm.test(\"All rows are uncertain\", () => { body.items.forEach(item => pm.expect(item.status).to.eql(\"UNKNOWN\")); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "17 - Second page",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json, application/problem+json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions?page=1&limit=2",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "2"
+                }
+              ]
+            },
+            "description": "Expected: HTTP 200. Pages are zero-based; an empty page is valid."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Paginated response\", () => { pm.expect(body.items).to.be.an(\"array\"); pm.expect(body.hasNext).to.be.a(\"boolean\"); });",
+                  "pm.test(\"Expected page and limit\", () => { pm.expect(body.page).to.eql(1); pm.expect(body.limit).to.eql(2); pm.expect(body.items.length).to.be.at.most(2); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "18 - Invalid pagination",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json, application/problem+json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions?limit=101",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "101"
+                }
+              ]
+            },
+            "description": "Expected: HTTP 400; limit must be between 1 and 100."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Expected error code\", () => { pm.expect(body.code).to.eql(\"INVALID_REQUEST\"); });",
+                  "pm.test(\"Problem status matches HTTP status\", () => { pm.expect(body.status).to.eql(pm.response.code); });",
+                  "pm.test(\"Request ID matches response header\", () => { pm.expect(body.requestId).to.eql(pm.response.headers.get(\"X-Request-ID\")); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "19 - Filter by account",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions?accountId=acc-123456",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "accountId",
+                  "value": "acc-123456"
+                }
+              ]
+            },
+            "description": "Expected: HTTP 200. Exact filters are combined with AND. Empty results are valid; run the transaction examples first to populate matching records."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Paginated response\", () => { pm.expect(body.items).to.be.an(\"array\"); pm.expect(body.hasNext).to.be.a(\"boolean\"); });",
+                  "pm.test(\"Expected page and limit\", () => { pm.expect(body.page).to.eql(0); pm.expect(body.limit).to.eql(20); pm.expect(body.items.length).to.be.at.most(20); });",
+                  "pm.test(\"All rows match every filter\", () => { body.items.forEach(item => { pm.expect(item.accountId).to.eql(\"acc-123456\"); }); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "20 - Filter by transaction type",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions?type=DEBIT",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "DEBIT"
+                }
+              ]
+            },
+            "description": "Expected: HTTP 200. Exact filters are combined with AND. Empty results are valid; run the transaction examples first to populate matching records."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Paginated response\", () => { pm.expect(body.items).to.be.an(\"array\"); pm.expect(body.hasNext).to.be.a(\"boolean\"); });",
+                  "pm.test(\"Expected page and limit\", () => { pm.expect(body.page).to.eql(0); pm.expect(body.limit).to.eql(20); pm.expect(body.items.length).to.be.at.most(20); });",
+                  "pm.test(\"All rows match every filter\", () => { body.items.forEach(item => { pm.expect(item.type).to.eql(\"DEBIT\"); }); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "21 - Filter by executed status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions?status=EXECUTED",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "EXECUTED"
+                }
+              ]
+            },
+            "description": "Expected: HTTP 200. Exact filters are combined with AND. Empty results are valid; run the transaction examples first to populate matching records."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Paginated response\", () => { pm.expect(body.items).to.be.an(\"array\"); pm.expect(body.hasNext).to.be.a(\"boolean\"); });",
+                  "pm.test(\"Expected page and limit\", () => { pm.expect(body.page).to.eql(0); pm.expect(body.limit).to.eql(20); pm.expect(body.items.length).to.be.at.most(20); });",
+                  "pm.test(\"All rows match every filter\", () => { body.items.forEach(item => { pm.expect(item.status).to.eql(\"EXECUTED\"); }); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "22 - Filter by account and type",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions?accountId=acc-123456&type=DEBIT",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "accountId",
+                  "value": "acc-123456"
+                },
+                {
+                  "key": "type",
+                  "value": "DEBIT"
+                }
+              ]
+            },
+            "description": "Expected: HTTP 200. Exact filters are combined with AND. Empty results are valid; run the transaction examples first to populate matching records."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Paginated response\", () => { pm.expect(body.items).to.be.an(\"array\"); pm.expect(body.hasNext).to.be.a(\"boolean\"); });",
+                  "pm.test(\"Expected page and limit\", () => { pm.expect(body.page).to.eql(0); pm.expect(body.limit).to.eql(20); pm.expect(body.items.length).to.be.at.most(20); });",
+                  "pm.test(\"All rows match every filter\", () => { body.items.forEach(item => { pm.expect(item.accountId).to.eql(\"acc-123456\"); pm.expect(item.type).to.eql(\"DEBIT\"); }); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "23 - Filter by account and rejected status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions?accountId=acc-insufficient-funds&status=REJECTED",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "accountId",
+                  "value": "acc-insufficient-funds"
+                },
+                {
+                  "key": "status",
+                  "value": "REJECTED"
+                }
+              ]
+            },
+            "description": "Expected: HTTP 200. Exact filters are combined with AND. Empty results are valid; run the transaction examples first to populate matching records."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Paginated response\", () => { pm.expect(body.items).to.be.an(\"array\"); pm.expect(body.hasNext).to.be.a(\"boolean\"); });",
+                  "pm.test(\"Expected page and limit\", () => { pm.expect(body.page).to.eql(0); pm.expect(body.limit).to.eql(20); pm.expect(body.items.length).to.be.at.most(20); });",
+                  "pm.test(\"All rows match every filter\", () => { body.items.forEach(item => { pm.expect(item.accountId).to.eql(\"acc-insufficient-funds\"); pm.expect(item.status).to.eql(\"REJECTED\"); }); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "24 - Filter by status and type",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions?status=EXECUTED&type=DEBIT",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "EXECUTED"
+                },
+                {
+                  "key": "type",
+                  "value": "DEBIT"
+                }
+              ]
+            },
+            "description": "Expected: HTTP 200. Exact filters are combined with AND. Empty results are valid; run the transaction examples first to populate matching records."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Paginated response\", () => { pm.expect(body.items).to.be.an(\"array\"); pm.expect(body.hasNext).to.be.a(\"boolean\"); });",
+                  "pm.test(\"Expected page and limit\", () => { pm.expect(body.page).to.eql(0); pm.expect(body.limit).to.eql(20); pm.expect(body.items.length).to.be.at.most(20); });",
+                  "pm.test(\"All rows match every filter\", () => { body.items.forEach(item => { pm.expect(item.status).to.eql(\"EXECUTED\"); pm.expect(item.type).to.eql(\"DEBIT\"); }); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "25 - Combined filters with page size one",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions?accountId=acc-123456&status=EXECUTED&type=DEBIT&page=0&limit=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "accountId",
+                  "value": "acc-123456"
+                },
+                {
+                  "key": "status",
+                  "value": "EXECUTED"
+                },
+                {
+                  "key": "type",
+                  "value": "DEBIT"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Expected: HTTP 200. Exact filters are combined with AND. Empty results are valid; run the transaction examples first to populate matching records."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Paginated response\", () => { pm.expect(body.items).to.be.an(\"array\"); pm.expect(body.hasNext).to.be.a(\"boolean\"); });",
+                  "pm.test(\"Expected page and limit\", () => { pm.expect(body.page).to.eql(0); pm.expect(body.limit).to.eql(1); pm.expect(body.items.length).to.be.at.most(1); });",
+                  "pm.test(\"All rows match every filter\", () => { body.items.forEach(item => { pm.expect(item.accountId).to.eql(\"acc-123456\"); pm.expect(item.status).to.eql(\"EXECUTED\"); pm.expect(item.type).to.eql(\"DEBIT\"); }); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    }
+  ]
+}
