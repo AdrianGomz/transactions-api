@@ -1,11 +1,14 @@
 package com.spin.transactions.infrastructure.provider;
 
 import java.io.IOException;
+import java.time.Duration;
 
 import com.spin.transactions.application.port.ProviderResult;
 import com.spin.transactions.application.port.TransactionProvider;
 import com.spin.transactions.domain.ExecutionFailure;
 import com.spin.transactions.domain.TransactionDetails;
+import io.github.resilience4j.retry.Retry;
+import io.github.resilience4j.retry.RetryConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -22,16 +25,18 @@ public final class RestTransactionProvider implements TransactionProvider {
 	private final RestClient client;
 	private final ProviderResponseMapper responseMapper;
 	private final JsonMapper mapper = JsonMapper.builder().build();
+	private final Retry retry = Retry.of("transaction-provider", RetryConfig.<ProviderResult>custom()
+			.maxAttempts(2)
+			.waitDuration(Duration.ZERO)
+			.retryOnResult(result -> result instanceof ProviderResult.Uncertain)
+			.retryOnException(exception -> false)
+			.failAfterMaxAttempts(false)
+			.build());
 
 	@Override
 	public ProviderResult execute(TransactionDetails details) {
 		var request = new ProviderRequest(details.accountId(), details.type(), details.amount(), details.currency());
-		var result = executeAttempt(request);
-		if (result instanceof ProviderResult.Uncertain) {
-			log.debug("Retrying provider execution once");
-			return executeAttempt(request);
-		}
-		return result;
+		return retry.executeSupplier(() -> executeAttempt(request));
 	}
 
 	private ProviderResult executeAttempt(ProviderRequest request) {
