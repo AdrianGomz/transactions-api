@@ -18,7 +18,7 @@ import org.springframework.stereotype.Service;
 
 import static com.spin.transactions.application.TransactionExecutionException.Reason.*;
 
-/** Coordinates short committed writes around one provider attempt; no surrounding database transaction. */
+/** Coordinates short committed writes around provider execution; no surrounding database transaction. */
 @Service
 @RequiredArgsConstructor
 @Slf4j

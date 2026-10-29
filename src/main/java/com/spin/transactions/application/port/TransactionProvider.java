@@ -4,7 +4,7 @@ import com.spin.transactions.domain.TransactionDetails;
 
 public interface TransactionProvider {
 
-	/** Executes one attempt. Expected upstream failures return Uncertain; no automatic retries. */
+	/** Executes a transaction; the HTTP adapter retries an uncertain result at most once. */
 	ProviderResult execute(TransactionDetails details);
 
 }

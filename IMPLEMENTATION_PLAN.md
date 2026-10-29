@@ -1,6 +1,6 @@
 # Transaction Execution API — implementation plan
 
-Status: Steps 1–8 are complete. Both endpoints, Docker packaging, health probes, and a repeatable smoke script are implemented. The provider port is wired directly to the REST adapter. Console logging covers execution outcomes/failures and optional DEBUG diagnostics; custom monitoring instrumentation remains outside the requested challenge scope. A clean build passed all 268 tests. The Docker smoke check passed with only health Actuator endpoints exposed before the logging additions. See [README.md](README.md) for commands and design details, [docs/verification.md](docs/verification.md) for evidence/limits, [docs/openapi.yaml](docs/openapi.yaml) for the contract, and [docs/api-decisions.md](docs/api-decisions.md) for assumptions. Next: step 9, final code/documentation review and repository handoff.
+Status: Steps 1–8 are complete. Both endpoints, Docker packaging, health probes, and a repeatable smoke script are implemented. The provider port is wired directly to the REST adapter. Console logging covers execution outcomes/failures and optional DEBUG diagnostics; custom monitoring instrumentation remains outside the requested challenge scope. A clean build passed all 261 tests. The Docker smoke check passed with only health Actuator endpoints exposed before the logging additions. See [README.md](README.md) for commands and design details, [docs/verification.md](docs/verification.md) for evidence/limits, [docs/openapi.yaml](docs/openapi.yaml) for the contract, and [docs/api-decisions.md](docs/api-decisions.md) for assumptions. Next: step 9, final code/documentation review and repository handoff.
 
 Working agreement: announce the intended work before each implementation step, complete and verify that step, then summarize the result for review before moving to the next step.
 
@@ -135,7 +135,7 @@ If the provider executes but the final database update fails, or the process cra
 
 Configure an initial connection timeout of 1 second and response timeout of 3 seconds, plus bounded connection acquisition and connection-pool limits. Treat these as tunable starting values, not performance guarantees. Verify that the underlying client does not automatically replay POST requests.
 
-Automatic execution retries are disabled. The provider contract has neither an idempotency key nor a lookup/reconciliation API, so retries could duplicate credits or debits. Production recovery requires provider-supported idempotency and a way to query execution outcomes. An outbox alone does not solve duplicate financial execution.
+The HTTP adapter immediately retries one uncertain outcome, for at most two HTTP requests per provider invocation. Approvals and HTTP 400 rejections are not retried. The underlying HTTP client has retries/redirects disabled so it cannot multiply this limit. The provider contract has neither an idempotency key nor a lookup/reconciliation API, so the retry can duplicate credits or debits. The service persists only one local attempt; that does not guarantee one external execution. An outbox alone does not solve duplicate financial execution.
 
 ## 6. Persistence model
 
@@ -163,9 +163,9 @@ Initial indexes: `(created_at DESC, id DESC)` and `(account_id, created_at DESC,
 Write tests with each feature rather than leaving them until the final day.
 
 - Domain unit tests: null/zero/negative amounts; 1.00 rejected; 1.01 accepted; DEBIT 10000.00 accepted and 10000.01 rejected; CREDIT above 10000 accepted; invalid currency/type; fractional cents.
-- Application tests: invalid requests never call the provider; initial save failure prevents dispatch; approval/rejection mapping; ambiguous outcome handling; final-save failure does not produce a false success; exactly one provider invocation per attempt.
+- Application tests: invalid requests never call the provider; initial save failure prevents dispatch; approval/rejection mapping; ambiguous outcome handling; final-save failure does not produce a false success; one provider-port invocation per local transaction; the HTTP adapter can make at most two requests.
 - Controller tests: JSON serialization, required fields, consistent problem details, HTTP status mapping, query validation.
-- Provider HTTP tests: exact method/path/body; approval and exact balances; HTTP 400 rejection; other 4xx/5xx remain uncertain; delays; JSON decoding failures; no automatic retries. Provider response fields are trusted; there are no custom shape, size, or content-type checks.
+- Provider HTTP tests: exact method/path/body; approval and exact balances; HTTP 400 rejection; other 4xx/5xx remain uncertain; delays; JSON decoding failures; one controlled retry on uncertain results and no retries on approval/rejection. Provider response fields are trusted; there are no custom shape, size, or content-type checks.
 - PostgreSQL integration tests: migrations, decimal precision including large credits, persistence and filtering, ordering, page boundaries, nullable provider fields.
 - End-to-end integration tests: submit through the real controller, call WireMock over HTTP, persist in a Testcontainers database, and retrieve through GET.
 - Final acceptance: fresh checkout instructions work; Docker Compose becomes healthy; curl examples demonstrate approval, rejection, validation failure, and querying; Maven verification passes.

@@ -9,6 +9,7 @@ import java.time.Instant;
 import com.github.tomakehurst.wiremock.http.Fault;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import com.github.tomakehurst.wiremock.stubbing.StubMapping;
+import com.github.tomakehurst.wiremock.stubbing.Scenario;
 import com.spin.transactions.ProviderTestConfiguration;
 import com.spin.transactions.application.port.ProviderResult;
 import com.spin.transactions.application.port.TransactionProvider;
@@ -62,11 +63,12 @@ class RestTransactionProviderTests {
 
 	@Autowired
 	private TransactionProvider provider;
+	private int expectedRequests = 1;
 
 	@AfterEach
-	void verifiesOneExecutionAttemptEvenForFailures() {
+	void verifiesTheExpectedNumberOfHttpAttempts() {
 		await().atMost(Duration.ofSeconds(6)).untilAsserted(() ->
-				wireMock.verify(1, postRequestedFor(urlEqualTo(PATH))));
+				wireMock.verify(expectedRequests, postRequestedFor(urlEqualTo(PATH))));
 	}
 
 	@Test
@@ -180,21 +182,47 @@ class RestTransactionProviderTests {
 	}
 
 	@Test
-	void responseTimeoutIsUncertainAndDoesNotRetry() {
+	void responseTimeoutIsUncertainAfterOneRetry() {
 		wireMock.stubFor(post(urlEqualTo(PATH)).willReturn(okJson(APPROVAL).withFixedDelay(1000)));
-		assertThat(provider.execute(details())).isEqualTo(new ProviderResult.Uncertain(ExecutionFailure.PROVIDER_ERROR));
+		assertProviderError();
 	}
 
 	@Test
 	void stalledResponseBodyAlsoTimesOut() {
 		wireMock.stubFor(post(urlEqualTo(PATH)).willReturn(okJson(APPROVAL).withChunkedDribbleDelay(2, 1500)));
-		assertThat(provider.execute(details())).isEqualTo(new ProviderResult.Uncertain(ExecutionFailure.PROVIDER_ERROR));
+		assertProviderError();
 	}
 
 	@Test
-	void connectionClosedWithoutResponseIsUncertainAndDoesNotRetry() {
+	void connectionClosedWithoutResponseIsUncertainAfterOneRetry() {
 		wireMock.stubFor(post(urlEqualTo(PATH)).willReturn(aResponse().withFault(Fault.EMPTY_RESPONSE)));
 		assertProviderError();
+	}
+
+	@Test
+	void returnsApprovalWhenTheOneRetrySucceeds() {
+		expectedRequests = 2;
+		wireMock.stubFor(post(urlEqualTo(PATH)).inScenario("retry-approval")
+				.whenScenarioStateIs(Scenario.STARTED).willSetStateTo("recovered")
+				.willReturn(aResponse().withStatus(503)));
+		wireMock.stubFor(post(urlEqualTo(PATH)).inScenario("retry-approval")
+				.whenScenarioStateIs("recovered").willReturn(okJson(APPROVAL)));
+
+		assertThat(provider.execute(details())).isEqualTo(new ProviderResult.Approved(
+				"txn-789", new BigDecimal("5500.00"), Instant.parse("2025-03-15T10:30:00Z")));
+	}
+
+	@Test
+	void returnsRejectionWhenTheOneRetryReceivesHttp400() {
+		expectedRequests = 2;
+		wireMock.stubFor(post(urlEqualTo(PATH)).inScenario("retry-rejection")
+				.whenScenarioStateIs(Scenario.STARTED).willSetStateTo("recovered")
+				.willReturn(aResponse().withFault(Fault.EMPTY_RESPONSE)));
+		wireMock.stubFor(post(urlEqualTo(PATH)).inScenario("retry-rejection")
+				.whenScenarioStateIs("recovered").willReturn(aResponse().withStatus(400)
+						.withHeader("Content-Type", "application/json").withBody(REJECTION)));
+
+		assertThat(provider.execute(details())).isEqualTo(new ProviderResult.Rejected(RejectionReason.INSUFFICIENT_FUNDS));
 	}
 
 	@Test
@@ -220,6 +248,7 @@ class RestTransactionProviderTests {
 			TransactionType type, String expected) throws Exception {
 		var mapping = StubMapping.buildFrom(Files.readString(Path.of("infra/wiremock/mappings", file)));
 		wireMock.getRuntimeInfo().getWireMock().register(mapping);
+		expectedRequests = "ERROR".equals(expected) ? 2 : 1;
 
 		var result = provider.execute(new TransactionDetails(accountId, type, new BigDecimal("1500.00"), "MXN", null));
 
@@ -236,6 +265,7 @@ class RestTransactionProviderTests {
 	}
 
 	private void assertProviderError() {
+		expectedRequests = 2;
 		assertThat(provider.execute(details())).isEqualTo(new ProviderResult.Uncertain(ExecutionFailure.PROVIDER_ERROR));
 	}
 

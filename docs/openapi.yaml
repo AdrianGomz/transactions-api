@@ -10,6 +10,9 @@ info:
     A stored balanceAfter is a historical provider snapshot, not a current balance.
 
     POST is not idempotent. Repeating a request creates a new execution attempt.
+    The server retries an uncertain provider result once, with two HTTP attempts
+    maximum. Approvals and provider HTTP 400 rejections are not retried.
+    Without provider idempotency, the retry can duplicate financial execution.
     Do not automatically retry POST after a timeout or server error: the provider
     may already have executed the transaction. No reconciliation API is available
     in the supplied provider contract. GET is safe to repeat.

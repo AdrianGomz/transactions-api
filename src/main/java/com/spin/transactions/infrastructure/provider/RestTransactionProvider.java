@@ -26,6 +26,15 @@ public final class RestTransactionProvider implements TransactionProvider {
 	@Override
 	public ProviderResult execute(TransactionDetails details) {
 		var request = new ProviderRequest(details.accountId(), details.type(), details.amount(), details.currency());
+		var result = executeAttempt(request);
+		if (result instanceof ProviderResult.Uncertain) {
+			log.debug("Retrying provider execution once");
+			return executeAttempt(request);
+		}
+		return result;
+	}
+
+	private ProviderResult executeAttempt(ProviderRequest request) {
 		try {
 			return client.post().uri("/provider/v1/execute")
 					.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON)

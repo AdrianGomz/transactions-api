@@ -12,6 +12,7 @@ import java.util.stream.Stream;
 
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import com.github.tomakehurst.wiremock.stubbing.StubMapping;
+import com.github.tomakehurst.wiremock.stubbing.Scenario;
 import com.spin.transactions.PostgresTestConfiguration;
 import com.spin.transactions.application.port.TransactionRepository;
 import com.spin.transactions.domain.ExecutionFailure;
@@ -113,7 +114,7 @@ class PostTransactionsTests {
 		assertThat(stored.createdAt().toString()).isEqualTo(body.get("createdAt").asString());
 		assertThat(response.headers().firstValue("Location")).isEmpty();
 		UUID.fromString(response.headers().firstValue("X-Request-ID").orElseThrow());
-		verifyOneExecution();
+		verifyExecutions(1);
 	}
 
 	@ParameterizedTest
@@ -130,7 +131,7 @@ class PostTransactionsTests {
 		assertThat(response.body()).doesNotContain("The provider rejected this execution");
 		assertThat(repository.findById(UUID.fromString(body.get("id").asString())).orElseThrow().status())
 				.isEqualTo(TransactionStatus.REJECTED);
-		verifyOneExecution();
+		verifyExecutions(1);
 	}
 
 	@ParameterizedTest
@@ -144,7 +145,7 @@ class PostTransactionsTests {
 		assertThat(stored.status()).isEqualTo(TransactionStatus.UNKNOWN);
 		assertThat(stored.failure()).isEqualTo(ExecutionFailure.valueOf(code));
 		assertThat(stored.rejection()).isNull();
-		verifyOneExecution();
+		verifyExecutions(2);
 	}
 
 	@ParameterizedTest
@@ -193,6 +194,28 @@ class PostTransactionsTests {
 	}
 
 	@Test
+	void retriesTheProviderOnceAndPersistsOnlyOneTransaction() throws Exception {
+		wireMock.stubFor(post(urlEqualTo("/provider/v1/execute")).inScenario("retry-once")
+				.whenScenarioStateIs(Scenario.STARTED).willSetStateTo("recovered")
+				.willReturn(aResponse().withStatus(503)));
+		wireMock.stubFor(post(urlEqualTo("/provider/v1/execute")).inScenario("retry-once")
+				.whenScenarioStateIs("recovered").willReturn(okJson("""
+						{"transactionId":"txn-retry","balance":5500.00,"executedAt":"2025-03-15T10:30:00Z"}
+						""")));
+
+		var response = sendPost(VALID);
+
+		assertThat(response.statusCode()).isEqualTo(201);
+		var body = mapper.readTree(response.body());
+		assertThat(body.get("status").asString()).isEqualTo("EXECUTED");
+		assertThat(body.get("providerTransactionId").asString()).isEqualTo("txn-retry");
+		assertThat(repository.findById(UUID.fromString(body.get("id").asString())).orElseThrow().status())
+				.isEqualTo(TransactionStatus.EXECUTED);
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM transactions", Integer.class)).isEqualTo(1);
+		verifyExecutions(2);
+	}
+
+	@Test
 	void repeatedSubmissionsAreSeparateAttemptsWithoutIdempotencySupport() throws Exception {
 		var first = sendPost(VALID);
 		var second = sendPost(VALID);
@@ -220,7 +243,7 @@ class PostTransactionsTests {
 		assertThat(body.get("items").size()).isEqualTo(1);
 		assertThat(body.get("items").get(0).get("id").asString()).isEqualTo(id);
 		assertThat(body.get("hasNext").booleanValue()).isFalse();
-		verifyOneExecution();
+		verifyExecutions(1);
 	}
 
 	@ParameterizedTest
@@ -244,7 +267,7 @@ class PostTransactionsTests {
 
 		assertThat(response.statusCode()).isEqualTo(201);
 		assertThat(mapper.readTree(response.body()).get("description").isNull()).isTrue();
-		verifyOneExecution();
+		verifyExecutions(1);
 	}
 
 	@ParameterizedTest
@@ -263,7 +286,7 @@ class PostTransactionsTests {
 		assertThat(body.get("balanceAfter").decimalValue()).isEqualByComparingTo("999999999999999999999999999.123456");
 		var stored = repository.findById(UUID.fromString(body.get("id").asString())).orElseThrow();
 		assertThat(stored.details().amount()).isEqualByComparingTo(amount);
-		verifyOneExecution();
+		verifyExecutions(1);
 	}
 
 	static Stream<String> largeCreditAmounts() {
@@ -279,7 +302,7 @@ class PostTransactionsTests {
 
 	@ParameterizedTest
 	@CsvSource({"INSERT, acc-insert-fails, false", "UPDATE, acc-save-fails, true", "UPDATE, acc-error-save-fails, true"})
-	void databaseWriteFailuresDoNotCauseFalseSuccessOrDuplicateExecution(String operation, String accountId,
+	void databaseWriteFailuresDoNotCauseFalseSuccessOrAdditionalRetries(String operation, String accountId,
 			boolean executionAttempted) throws Exception {
 		jdbc.execute("""
 				CREATE FUNCTION reject_test_writes() RETURNS trigger LANGUAGE plpgsql AS $$
@@ -300,7 +323,7 @@ class PostTransactionsTests {
 		if (executionAttempted) {
 			assertThat(attempt).isPresent();
 			assertThat(attempt.orElseThrow().status()).isEqualTo(TransactionStatus.PENDING);
-			verifyOneExecution();
+			verifyExecutions("acc-error-save-fails".equals(accountId) ? 2 : 1);
 		}
 		else {
 			assertThat(attempt).isEmpty();
@@ -339,9 +362,9 @@ class PostTransactionsTests {
 		wireMock.verify(0, postRequestedFor(urlEqualTo("/provider/v1/execute")));
 	}
 
-	private void verifyOneExecution() {
+	private void verifyExecutions(int expected) {
 		await().atMost(Duration.ofSeconds(6)).untilAsserted(() ->
-				wireMock.verify(1, postRequestedFor(urlEqualTo("/provider/v1/execute"))));
+				wireMock.verify(expected, postRequestedFor(urlEqualTo("/provider/v1/execute"))));
 	}
 
 }
