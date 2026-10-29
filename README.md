@@ -151,12 +151,6 @@ Returns HTTP 200 with `{ "items": [...], "page": 0, "limit": 20, "hasNext": fals
 
 Invalid or repeated supported parameters return 400; unknown parameters are ignored. Storage failures return 503. GET only reads stored records. Concurrent writes can shift results between pages.
 
-## Important assumptions
-
-1. **Provider rejection versus technical failure.** The challenge describes all provider 4xx/5xx responses as REJECTED. We interpret only the documented HTTP 400 response as an explicit business rejection. Responses such as 401, 403, 429, 500, or 503 indicate authentication, rate-limit, or infrastructure problems and do not establish the financial outcome. We treat these and other uncertain failures as `PROVIDER_ERROR`, retry once, and store UNKNOWN if uncertainty remains. This distinction keeps technical failures separate from business decisions and allows retries without retrying explicit rejections. A retry can still duplicate execution because the provider has no idempotency contract.
-
-2. **Save PENDING before provider execution.** We commit a local PENDING record before calling the provider, then save the outcome separately. If the provider executes successfully but the application crashes or cannot save the result, the committed PENDING record remains as evidence of the attempt. PENDING therefore does not prove execution failed or never happened. The supplied provider contract has no reconciliation endpoint, so resolving these records requires further investigation.
-
 ## Design and documentation
 
 - [Implementation plan](IMPLEMENTATION_PLAN.md)
@@ -167,6 +161,12 @@ Invalid or repeated supported parameters return 400; unknown parameters are igno
 The app uses ports and adapters: controllers validate requests, application services coordinate domain logic, and JPA/RestClient adapters handle persistence and provider calls. Domain models and ports stay independent of Spring. PostgreSQL stores transactions, Flyway manages migrations, and the provider owns account balances.
 
 The API package groups controllers, requests, responses, and error handling. Spring manages services and repositories through constructor injection, with Lombok generating dependency constructors. Enable annotation processing in your IDE.
+
+## Important assumptions
+
+1. **Provider rejection versus technical failure.** The challenge describes all provider 4xx/5xx responses as REJECTED. We interpret only the documented HTTP 400 response as an explicit business rejection. Responses such as 401, 403, 429, 500, or 503 indicate authentication, rate-limit, or infrastructure problems and do not establish the financial outcome. We treat these and other uncertain failures as `PROVIDER_ERROR`, retry once, and store UNKNOWN if uncertainty remains. This distinction keeps technical failures separate from business decisions and allows retries without retrying explicit rejections. A retry can still duplicate execution because the provider has no idempotency contract.
+
+2. **Save PENDING before provider execution.** We commit a local PENDING record before calling the provider, then save the outcome separately. If the provider executes successfully but the application crashes or cannot save the result, the committed PENDING record remains as evidence of the attempt. PENDING therefore does not prove execution failed or never happened. The supplied provider contract has no reconciliation endpoint, so resolving these records requires further investigation.
 
 ## Provider integration
 
