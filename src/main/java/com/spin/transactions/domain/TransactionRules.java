@@ -16,7 +16,7 @@ final class TransactionRules {
 	private TransactionRules() {
 	}
 
-	// Called after TransactionDetails has checked required fields and text lengths.
+	// Required fields and text lengths are validated at the API boundary.
 	static void validate(TransactionType type, BigDecimal amount, String currency) {
 		var violations = new ArrayList<RuleViolation>();
 		if (amount.compareTo(MINIMUM_EXCLUSIVE) <= 0) {

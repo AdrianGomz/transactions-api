@@ -24,7 +24,7 @@ CREATE TABLE transactions (
     CONSTRAINT transactions_status CHECK (status IN ('PENDING', 'EXECUTED', 'REJECTED', 'UNKNOWN')),
     CONSTRAINT transactions_balance_finite CHECK (balance_after NOT IN ('NaN'::NUMERIC, 'Infinity'::NUMERIC, '-Infinity'::NUMERIC)),
     CONSTRAINT transactions_rejection_reason CHECK (rejection_reason IN ('INSUFFICIENT_FUNDS', 'PROVIDER_REJECTED')),
-    CONSTRAINT transactions_failure_code CHECK (failure_code IN ('PROVIDER_TIMEOUT', 'PROVIDER_ERROR')),
+    CONSTRAINT transactions_failure_code CHECK (failure_code IN ('PROVIDER_ERROR')),
     CONSTRAINT transactions_timestamps CHECK (
         ISFINITE(created_at) AND ISFINITE(updated_at) AND updated_at >= created_at
         AND (provider_executed_at IS NULL OR ISFINITE(provider_executed_at))

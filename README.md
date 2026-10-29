@@ -64,7 +64,16 @@ If application port 8080 is occupied, use:
 
 Then check `http://localhost:8082/actuator/health`.
 
-Flyway runs at startup and applies `V1__create_transactions.sql` to create the transaction table, constraints, and indexes. `V2__simplify_provider_failures.sql` converts previously stored timeout failure codes to the generic `PROVIDER_ERROR` and restricts new failure codes to that value. Existing development databases are migrated on the next application startup. Hibernate uses `ddl-auto=validate`, never `update` or `create`. Do not edit an applied migration; add a new version for subsequent schema changes.
+Flyway runs at startup and applies the single consolidated migration `V1__create_transactions.sql` to create the transaction table, constraints, and indexes. UNKNOWN records use only the generic `PROVIDER_ERROR` failure code. Hibernate uses `ddl-auto=validate`, never `update` or `create`.
+
+Databases initialized with earlier versions of the migration files need a fresh database because their Flyway checksums/history no longer match this consolidated baseline. For disposable local Compose data, the following reset **deletes all stored local transactions**:
+
+```bash
+docker compose down --volumes
+docker compose up --build -d --wait
+```
+
+To preserve existing data, use a new database instead of resetting the old one. Once this baseline is shared or deployed, keep it unchanged and add versioned migrations for subsequent schema changes.
 
 Stop a Maven-run app with Ctrl+C. Stop the Compose stack with:
 
@@ -186,7 +195,7 @@ All errors use `application/problem+json`, with `type`, `title`, `status`, `deta
 
 `ExecuteTransactionService` is a Spring `@Service` using constructor injection. It commits the initial PENDING record, performs one provider invocation, then commits the outcome using the repository's independent transactions. It has no surrounding database transaction. Final-write failures take precedence over provider errors, so the API does not claim UNKNOWN was stored if that write failed. Unexpected client exceptions are treated conservatively and do not trigger a retry. The local clock is injected, and backward clock adjustments cannot produce an updatedAt earlier than creation.
 
-JSON field types are strict: quoted amounts, numeric enum values, and numeric/boolean values for string fields return 400. Duplicate keys and trailing JSON documents also return 400. Unknown fields are ignored, subject to parser limits. Technical safeguards bound parsed documents to 64 KiB, nesting to 32 levels, strings to 8192 characters, numeric tokens to 1024 characters, and amounts to 1000 integer digits (including exponent expansion). These resource limits are separate from business rules; CREDIT has no business maximum within the supported representation. Fractional cents remain a 422 policy error rather than being rounded.
+JSON field types are strict: quoted amounts, numeric enum values, and numeric/boolean values for string fields return 400. Duplicate keys and trailing JSON documents also return 400. Unknown fields are ignored, subject to parser limits. Technical safeguards bound parsed documents to 64 KiB, nesting to 32 levels, strings to 8192 characters, and numeric tokens to 1024 characters. There is no separate application limit on an amount's integer digits after exponent expansion; for example, CREDIT amount `1e1001` is accepted. Parser limits and PostgreSQL's numeric representation limits still apply. CREDIT has no business maximum. Fractional cents remain a 422 policy error rather than being rounded.
 
 POST has no idempotency support. Two submissions create two attempts and can execute twice. Do not automatically resubmit after a timeout or server failure; the provider may already have changed the balance. Use collection queries to inspect stored attempts. PENDING/UNKNOWN records cannot be reconciled automatically with the supplied provider contract.
 
@@ -283,7 +292,7 @@ GET integration tests cover all stored statuses, combined/exact filters, timesta
 
 The `domain` package uses only Java types, with no Spring, JPA, or HTTP dependencies:
 
-- `TransactionDetails` holds validated input. It checks required values and text lengths before applying monetary rules.
+- `TransactionDetails` applies business rules to transaction input. Required values and text lengths are validated by `CreateTransactionRequest` at the API boundary.
 - `TransactionRules` enforces amount greater than 1.00, the inclusive 10000.00 DEBIT maximum, MXN-only currency, and exact-cent precision. CREDIT has no business maximum. It compares `BigDecimal` values numerically and preserves the supplied amount without rounding.
 - `BusinessRuleViolationException` carries an immutable list of field/code/message violations, allowing the API layer to report multiple policy violations together.
 - `Transaction` is an immutable execution record. `pending(...)` creates an attempt; `recordApproval(...)`, `recordRejection(...)`, and `recordUncertainOutcome(...)` return new values. Only PENDING may record an outcome. Constructors also enforce valid state/data combinations when reconstructing stored records.
@@ -293,7 +302,7 @@ The application will supply IDs and timestamps, making the domain deterministic 
 
 Domain methods perform no database writes or HTTP calls. Their transition checks protect an individual value; they do not provide distributed concurrency control, deduplicate requests, or guarantee that an outcome was persisted. The repository/application layers enforce the persistence boundaries. UNKNOWN currently has no automatic recovery transition because the provider contract supplies no reconciliation mechanism.
 
-Structural domain guards throw `IllegalArgumentException` for invalid input and null record metadata is rejected. The controller validates JSON/required fields before constructing domain values, and the API error handler maps policy violations to 422. HTTP status handling remains outside the domain.
+The controller validates JSON, required fields, and text lengths before constructing `TransactionDetails`; its constructor only calls `TransactionRules`. Other callers must supply structurally valid input. `Transaction` still rejects null record metadata and invalid state/data combinations. The API error handler maps policy violations to 422. HTTP status handling remains outside the domain.
 
 ## Persistence
 

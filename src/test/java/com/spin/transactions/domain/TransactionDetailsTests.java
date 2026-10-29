@@ -8,12 +8,10 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
-import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static com.spin.transactions.domain.RuleViolation.Code.AMOUNT_TOO_SMALL;
 import static com.spin.transactions.domain.RuleViolation.Code.DEBIT_LIMIT_EXCEEDED;
@@ -90,41 +88,11 @@ class TransactionDetailsTests {
 				.isThrownBy(() -> exception.violations().clear());
 	}
 
-	@ParameterizedTest
-	@NullSource
-	@ValueSource(strings = {"", " ", "\t\n", "\u2003"})
-	void rejectsMissingOrBlankAccountIds(String accountId) {
-		assertThatIllegalArgumentException().isThrownBy(() ->
-				new TransactionDetails(accountId, TransactionType.CREDIT, BigDecimal.TEN, "MXN", null));
-	}
-
 	@Test
-	void enforcesTextLengthBoundariesAndPreservesOpaqueAccountIds() {
-		var boundary = new TransactionDetails("a".repeat(128), TransactionType.CREDIT,
-				BigDecimal.TEN, "MXN", "d".repeat(500));
-		assertThat(boundary.accountId()).hasSize(128);
-		assertThat(boundary.description()).hasSize(500);
-		assertThatIllegalArgumentException().isThrownBy(() -> new TransactionDetails(
-				"a".repeat(129), TransactionType.CREDIT, BigDecimal.TEN, "MXN", null));
-		assertThatIllegalArgumentException().isThrownBy(() -> new TransactionDetails(
-				"acc-123", TransactionType.CREDIT, BigDecimal.TEN, "MXN", "d".repeat(501)));
+	void preservesOpaqueAccountIdsAndEmptyDescriptions() {
 		var opaque = new TransactionDetails(" acc-123 ", TransactionType.CREDIT, BigDecimal.TEN, "MXN", "");
 		assertThat(opaque.accountId()).isEqualTo(" acc-123 ");
 		assertThat(opaque.description()).isEmpty();
-	}
-
-	@ParameterizedTest
-	@MethodSource("missingRequiredValues")
-	void rejectsMissingRequiredValuesBeforeEvaluatingPolicies(TransactionType type,
-			BigDecimal amount, String currency) {
-		assertThatIllegalArgumentException().isThrownBy(() -> details(type, amount, currency));
-	}
-
-	static Stream<Arguments> missingRequiredValues() {
-		return Stream.of(
-				Arguments.of(null, BigDecimal.ZERO, "USD"),
-				Arguments.of(TransactionType.CREDIT, null, "MXN"),
-				Arguments.of(TransactionType.CREDIT, BigDecimal.TEN, null));
 	}
 
 	private static TransactionDetails details(TransactionType type, BigDecimal amount, String currency) {
