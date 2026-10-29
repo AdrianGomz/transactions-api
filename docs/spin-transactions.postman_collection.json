@@ -16,19 +16,6 @@
       "description": "Application origin, without a trailing slash. Use http://localhost:8082 if running on port 8082."
     }
   ],
-  "event": [
-    {
-      "listen": "test",
-      "script": {
-        "type": "text/javascript",
-        "exec": [
-          "pm.test(\"Response has a UUID request ID\", () => {",
-          "    pm.expect(pm.response.headers.get(\"X-Request-ID\")).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);",
-          "});"
-        ]
-      }
-    }
-  ],
   "item": [
     {
       "name": "Health",
@@ -277,7 +264,6 @@
                   "const body = pm.response.json();",
                   "pm.test(\"Expected error code\", () => { pm.expect(body.code).to.eql(\"PROVIDER_ERROR\"); });",
                   "pm.test(\"Problem status matches HTTP status\", () => { pm.expect(body.status).to.eql(pm.response.code); });",
-                  "pm.test(\"Request ID matches response header\", () => { pm.expect(body.requestId).to.eql(pm.response.headers.get(\"X-Request-ID\")); });",
                   "pm.test(\"Transaction attempt identified\", () => { pm.expect(body.transactionId).to.be.a(\"string\").and.not.empty; });"
                 ]
               }
@@ -329,7 +315,6 @@
                   "const body = pm.response.json();",
                   "pm.test(\"Expected error code\", () => { pm.expect(body.code).to.eql(\"PROVIDER_ERROR\"); });",
                   "pm.test(\"Problem status matches HTTP status\", () => { pm.expect(body.status).to.eql(pm.response.code); });",
-                  "pm.test(\"Request ID matches response header\", () => { pm.expect(body.requestId).to.eql(pm.response.headers.get(\"X-Request-ID\")); });",
                   "pm.test(\"Transaction attempt identified\", () => { pm.expect(body.transactionId).to.be.a(\"string\").and.not.empty; });"
                 ]
               }
@@ -381,7 +366,6 @@
                   "const body = pm.response.json();",
                   "pm.test(\"Expected error code\", () => { pm.expect(body.code).to.eql(\"PROVIDER_ERROR\"); });",
                   "pm.test(\"Problem status matches HTTP status\", () => { pm.expect(body.status).to.eql(pm.response.code); });",
-                  "pm.test(\"Request ID matches response header\", () => { pm.expect(body.requestId).to.eql(pm.response.headers.get(\"X-Request-ID\")); });",
                   "pm.test(\"Transaction attempt identified\", () => { pm.expect(body.transactionId).to.be.a(\"string\").and.not.empty; });"
                 ]
               }
@@ -437,8 +421,7 @@
                   "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
                   "const body = pm.response.json();",
                   "pm.test(\"Expected error code\", () => { pm.expect(body.code).to.eql(\"INVALID_REQUEST\"); });",
-                  "pm.test(\"Problem status matches HTTP status\", () => { pm.expect(body.status).to.eql(pm.response.code); });",
-                  "pm.test(\"Request ID matches response header\", () => { pm.expect(body.requestId).to.eql(pm.response.headers.get(\"X-Request-ID\")); });"
+                  "pm.test(\"Problem status matches HTTP status\", () => { pm.expect(body.status).to.eql(pm.response.code); });"
                 ]
               }
             }
@@ -488,8 +471,7 @@
                   "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
                   "const body = pm.response.json();",
                   "pm.test(\"Expected error code\", () => { pm.expect(body.code).to.eql(\"INVALID_REQUEST\"); });",
-                  "pm.test(\"Problem status matches HTTP status\", () => { pm.expect(body.status).to.eql(pm.response.code); });",
-                  "pm.test(\"Request ID matches response header\", () => { pm.expect(body.requestId).to.eql(pm.response.headers.get(\"X-Request-ID\")); });"
+                  "pm.test(\"Problem status matches HTTP status\", () => { pm.expect(body.status).to.eql(pm.response.code); });"
                 ]
               }
             }
@@ -540,7 +522,6 @@
                   "const body = pm.response.json();",
                   "pm.test(\"Expected error code\", () => { pm.expect(body.code).to.eql(\"BUSINESS_RULE_VIOLATION\"); });",
                   "pm.test(\"Problem status matches HTTP status\", () => { pm.expect(body.status).to.eql(pm.response.code); });",
-                  "pm.test(\"Request ID matches response header\", () => { pm.expect(body.requestId).to.eql(pm.response.headers.get(\"X-Request-ID\")); });",
                   "pm.test(\"Expected business violation\", () => { pm.expect(body.fieldErrors.map(error => error.code)).to.include(\"AMOUNT_TOO_SMALL\"); });"
                 ]
               }
@@ -592,7 +573,6 @@
                   "const body = pm.response.json();",
                   "pm.test(\"Expected error code\", () => { pm.expect(body.code).to.eql(\"BUSINESS_RULE_VIOLATION\"); });",
                   "pm.test(\"Problem status matches HTTP status\", () => { pm.expect(body.status).to.eql(pm.response.code); });",
-                  "pm.test(\"Request ID matches response header\", () => { pm.expect(body.requestId).to.eql(pm.response.headers.get(\"X-Request-ID\")); });",
                   "pm.test(\"Expected business violation\", () => { pm.expect(body.fieldErrors.map(error => error.code)).to.include(\"DEBIT_LIMIT_EXCEEDED\"); });"
                 ]
               }
@@ -644,7 +624,6 @@
                   "const body = pm.response.json();",
                   "pm.test(\"Expected error code\", () => { pm.expect(body.code).to.eql(\"BUSINESS_RULE_VIOLATION\"); });",
                   "pm.test(\"Problem status matches HTTP status\", () => { pm.expect(body.status).to.eql(pm.response.code); });",
-                  "pm.test(\"Request ID matches response header\", () => { pm.expect(body.requestId).to.eql(pm.response.headers.get(\"X-Request-ID\")); });",
                   "pm.test(\"Expected business violation\", () => { pm.expect(body.fieldErrors.map(error => error.code)).to.include(\"INVALID_AMOUNT_PRECISION\"); });"
                 ]
               }
@@ -696,7 +675,6 @@
                   "const body = pm.response.json();",
                   "pm.test(\"Expected error code\", () => { pm.expect(body.code).to.eql(\"BUSINESS_RULE_VIOLATION\"); });",
                   "pm.test(\"Problem status matches HTTP status\", () => { pm.expect(body.status).to.eql(pm.response.code); });",
-                  "pm.test(\"Request ID matches response header\", () => { pm.expect(body.requestId).to.eql(pm.response.headers.get(\"X-Request-ID\")); });",
                   "pm.test(\"Expected business violation\", () => { pm.expect(body.fieldErrors.map(error => error.code)).to.include(\"UNSUPPORTED_CURRENCY\"); });"
                 ]
               }
@@ -933,8 +911,7 @@
                   "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
                   "const body = pm.response.json();",
                   "pm.test(\"Expected error code\", () => { pm.expect(body.code).to.eql(\"INVALID_REQUEST\"); });",
-                  "pm.test(\"Problem status matches HTTP status\", () => { pm.expect(body.status).to.eql(pm.response.code); });",
-                  "pm.test(\"Request ID matches response header\", () => { pm.expect(body.requestId).to.eql(pm.response.headers.get(\"X-Request-ID\")); });"
+                  "pm.test(\"Problem status matches HTTP status\", () => { pm.expect(body.status).to.eql(pm.response.code); });"
                 ]
               }
             }

@@ -3,7 +3,6 @@ package com.spin.transactions.api.error;
 import java.net.URI;
 import java.util.List;
 
-import com.spin.transactions.api.filter.RequestIdFilter;
 import com.spin.transactions.application.TransactionExecutionException;
 import com.spin.transactions.application.TransactionQueryException;
 import com.spin.transactions.domain.BusinessRuleViolationException;
@@ -82,7 +81,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 	ResponseEntity<Object> unexpected(Exception exception, HttpServletRequest request) {
 		log.error("Request failed: reason=INTERNAL_ERROR, causeType={}",
 				exception.getClass().getSimpleName());
-		return response(problem(500, "INTERNAL_ERROR", "An unexpected error occurred. Contact support with the request ID.", request),
+		return response(problem(500, "INTERNAL_ERROR", "An unexpected error occurred.", request),
 				HttpHeaders.EMPTY);
 	}
 
@@ -117,7 +116,6 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 		problem.setType(URI.create("about:blank"));
 		problem.setInstance(URI.create(request.getRequestURI()));
 		problem.setProperty("code", code);
-		problem.setProperty("requestId", request.getAttribute(RequestIdFilter.ATTRIBUTE));
 		return problem;
 	}
 

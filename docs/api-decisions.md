@@ -32,11 +32,11 @@ The source of truth for public request and response shapes is [openapi.yaml](ope
 | Pagination | Zero-based page, default 0; limit default 20, range 1–100. Page must fit a nonnegative 32-bit integer; calculate offsets with 64-bit arithmetic. Return `hasNext`, without a full count query. |
 | Query filters | Combine supplied filters with AND, with exact case-sensitive matching. Empty, invalid, or repeated supported parameters return 400; defaults apply only when omitted. Ignore unknown query parameters for forward compatibility. |
 | Ordering | `createdAt DESC, id DESC`; concurrent writes can shift offset pages. Deep offsets are a documented scaling limit. |
-| Error format | `application/problem+json`, stable application/field codes, server-generated request ID, and transaction ID when available. Omit optional error fields when absent. |
+| Error format | `application/problem+json`, stable application/field codes and transaction ID when available. Omit optional error fields when absent. |
 | Detail endpoint | Neither the required scope nor this contract includes GET by ID. Do not invent a Location URL that cannot be retrieved. Locate a record through the account-filtered collection. |
 | Authentication | Not specified; local demo has no authentication. Public deployment requires an access model. |
 
-Technical parser limits are now implemented: parsed document length 64 KiB, nesting depth 32, string length 8192, and numeric token length 1024. Exceeding a parser limit returns 400 before execution. These are resource limits, not a new CREDIT business cap. Fractional-cent violations return 422. Unknown JSON properties remain accepted within these limits. Responses include a server-generated X-Request-ID header as well as the request ID in problem bodies.
+Technical parser limits are now implemented: parsed document length 64 KiB, nesting depth 32, string length 8192, and numeric token length 1024. Exceeding a parser limit returns 400 before execution. These are resource limits, not a new CREDIT business cap. Fractional-cent violations return 422. Unknown JSON properties remain accepted within these limits.
 
 ## States and side effects
 

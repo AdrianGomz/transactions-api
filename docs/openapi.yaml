@@ -103,7 +103,6 @@ paths:
                 detail: Use Content-Type application/json.
                 instance: /transactions
                 code: UNSUPPORTED_MEDIA_TYPE
-                requestId: 3182e484-d22b-49ef-85dc-c32ed064db92
         '422':
           description: An amount or currency rule was violated. Nothing is persisted and the provider is not called.
           content:
@@ -119,7 +118,6 @@ paths:
                     detail: One or more transaction rules were violated.
                     instance: /transactions
                     code: BUSINESS_RULE_VIOLATION
-                    requestId: 3182e484-d22b-49ef-85dc-c32ed064db92
                     fieldErrors:
                       - field: amount
                         code: AMOUNT_TOO_SMALL
@@ -132,7 +130,6 @@ paths:
                     detail: One or more transaction rules were violated.
                     instance: /transactions
                     code: BUSINESS_RULE_VIOLATION
-                    requestId: 3182e484-d22b-49ef-85dc-c32ed064db92
                     fieldErrors:
                       - field: amount
                         code: DEBIT_LIMIT_EXCEEDED
@@ -145,7 +142,6 @@ paths:
                     detail: One or more transaction rules were violated.
                     instance: /transactions
                     code: BUSINESS_RULE_VIOLATION
-                    requestId: 3182e484-d22b-49ef-85dc-c32ed064db92
                     fieldErrors:
                       - field: currency
                         code: UNSUPPORTED_CURRENCY
@@ -158,7 +154,6 @@ paths:
                     detail: One or more transaction rules were violated.
                     instance: /transactions
                     code: BUSINESS_RULE_VIOLATION
-                    requestId: 3182e484-d22b-49ef-85dc-c32ed064db92
                     fieldErrors:
                       - field: amount
                         code: INVALID_AMOUNT_PRECISION
@@ -178,7 +173,6 @@ paths:
                 detail: The provider outcome could not be confirmed. Do not automatically resubmit.
                 instance: /transactions
                 code: PROVIDER_ERROR
-                requestId: 3182e484-d22b-49ef-85dc-c32ed064db92
                 transactionId: 2b05f5ec-1d5d-4ade-9697-52f3b6a782dd
         '503':
           $ref: '#/components/responses/StorageUnavailable'
@@ -425,7 +419,7 @@ components:
           type: boolean
     Problem:
       type: object
-      required: [type, title, status, detail, instance, code, requestId]
+      required: [type, title, status, detail, instance, code]
       properties:
         type:
           type: string
@@ -444,14 +438,10 @@ components:
         instance:
           type: string
           format: uri-reference
-          description: Request path; requestId identifies the individual request.
+          description: Request path.
         code:
           type: string
           enum: [INVALID_REQUEST, BUSINESS_RULE_VIOLATION, UNSUPPORTED_MEDIA_TYPE, PROVIDER_ERROR, STORAGE_UNAVAILABLE, INTERNAL_ERROR]
-        requestId:
-          type: string
-          format: uuid
-          description: Server-generated ID for finding this request in logs.
         transactionId:
           type: string
           format: uuid
@@ -492,7 +482,6 @@ components:
                 detail: One or more request fields are invalid.
                 instance: /transactions
                 code: INVALID_REQUEST
-                requestId: 3182e484-d22b-49ef-85dc-c32ed064db92
                 fieldErrors:
                   - field: accountId
                     code: REQUIRED
@@ -505,7 +494,6 @@ components:
                 detail: One or more query parameters are invalid.
                 instance: /transactions
                 code: INVALID_REQUEST
-                requestId: 3182e484-d22b-49ef-85dc-c32ed064db92
                 fieldErrors:
                   - field: limit
                     code: INVALID_VALUE
@@ -529,7 +517,6 @@ components:
                 detail: Transaction storage is temporarily unavailable.
                 instance: /transactions
                 code: STORAGE_UNAVAILABLE
-                requestId: 3182e484-d22b-49ef-85dc-c32ed064db92
             finalSaveFailed:
               value:
                 type: about:blank
@@ -538,7 +525,6 @@ components:
                 detail: The execution result could not be saved. Execution may have occurred. Do not automatically resubmit.
                 instance: /transactions
                 code: STORAGE_UNAVAILABLE
-                requestId: 3182e484-d22b-49ef-85dc-c32ed064db92
                 transactionId: 2b05f5ec-1d5d-4ade-9697-52f3b6a782dd
     InternalError:
       description: Unexpected application error. POST may have side effects; do not automatically retry. Include transactionId when available.
@@ -550,10 +536,9 @@ components:
             type: about:blank
             title: Internal Server Error
             status: 500
-            detail: An unexpected error occurred. Contact support with the request ID.
+            detail: An unexpected error occurred.
             instance: /transactions
             code: INTERNAL_ERROR
-            requestId: 3182e484-d22b-49ef-85dc-c32ed064db92
   examples:
     ExecutedTransaction:
       summary: Approved credit with the provider balance
